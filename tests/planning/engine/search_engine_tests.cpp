@@ -37,8 +37,8 @@ namespace bg = boost::geometry;
 
 /* ───────── configuration ───────── */
 constexpr double R_MIN = 1.5;     ///< [m]
-constexpr double STEP = 0.50;     ///< [m] steering discretisation
-constexpr double EPS_GOAL = 0.05; ///< [m] goal proximity
+constexpr double STEP = 0.02;     ///< [m] steering discretisation
+constexpr double EPS_GOAL = 0.01; ///< [m] goal proximity
 constexpr int SAMPLES = 50;       ///< cases per workspace kind
 
 /* ───────── helpers ───────── */
