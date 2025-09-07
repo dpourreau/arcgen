@@ -98,9 +98,21 @@ namespace arcgen::planning::engine
          */
         struct DebugInfo
         {
+            /// Which planning stage produced the result.
+            enum class StageUsed : std::uint8_t
+            {
+                Direct,
+                Local,
+                Global
+            };
+
+            StageUsed stage{StageUsed::Direct};                             ///< Stage that succeeded.
             std::vector<State> coarse;                                      ///< Output of graph search (+ assigned headings)
             std::vector<State> waypoints;                                   ///< start + coarse + goal (what stitch() uses)
             std::vector<std::pair<std::size_t, std::size_t>> stitchedPairs; ///< (i, j) indices in @ref waypoints that were stitched
+
+            // Skeleton graph actually used (copied) when stage is Local/Global; empty for Direct.
+            std::optional<GlobalGraph> graph;
         };
 
         /**
@@ -228,13 +240,24 @@ namespace arcgen::planning::engine
                 auto cand = steering_->candidates (start, goal);
                 if (auto best = pickBest (*steering_, start, goal, cand, constraints_))
                 {
+                    if (dbg)
+                    {
+                        dbg->stage = DebugInfo::StageUsed::Direct;
+                        dbg->coarse.clear ();
+                        dbg->waypoints.clear ();
+                        dbg->waypoints.push_back (start);
+                        dbg->waypoints.push_back (goal);
+                        dbg->stitchedPairs.clear ();
+                        dbg->stitchedPairs.emplace_back (0, 1);
+                        dbg->graph.reset ();
+                    }
                     // states already ensured by pickBest
                     return *(best->states);
                 }
             }
 
             // Small helper to run graph-search + stitching on an arbitrary graph
-            auto tryGraph = [&] (auto &&graph) -> std::vector<State>
+            auto tryGraph = [&] (auto &&graph, typename DebugInfo::StageUsed stage) -> std::vector<State>
             {
                 auto coarse = graphSearch_->search (graph, start, goal);
                 if (coarse.size () < 2)
@@ -251,7 +274,11 @@ namespace arcgen::planning::engine
                 waypoints.push_back (goal);
 
                 if (dbg)
+                {
                     dbg->waypoints = waypoints;
+                    dbg->stage = stage;
+                    dbg->graph = graph; // copy for visualization
+                }
 
                 return stitch (waypoints, dbg);
             };
@@ -278,7 +305,7 @@ namespace arcgen::planning::engine
                 if (!localValid.empty ())
                 {
                     auto localGraph = skeleton_->generate (localValid);
-                    if (auto path = tryGraph (localGraph); !path.empty ())
+                    if (auto path = tryGraph (localGraph, DebugInfo::StageUsed::Local); !path.empty ())
                         return path;
                 }
             }
@@ -293,7 +320,7 @@ namespace arcgen::planning::engine
             if (!globalGraph_)
                 return {}; // workspace empty or skeleton generation failed
 
-            return tryGraph (*globalGraph_);
+            return tryGraph (*globalGraph_, DebugInfo::StageUsed::Global);
         }
 
       private:

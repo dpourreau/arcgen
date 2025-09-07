@@ -282,19 +282,10 @@ template <class Cfg> class EngineFixture : public ::testing::Test
             svg.drawRegion (*wptr);
         }
 
-        // Draw skeleton: use cached global graph if available; else generate once for plotting.
-        if (auto *cached = engine->getGlobalGraph ())
+        // Draw the actual skeleton graph used (local/global) if present in debug info.
+        if (dbg.graph)
         {
-            svg.drawSkeleton (*cached);
-        }
-        else if (auto wptr = engine->getWorkspace ())
-        {
-            if (auto skel = engine->getSkeleton ())
-            {
-                // Build a one-off global skeleton for visualization only.
-                auto tmpGraph = skel->generate (*wptr);
-                svg.drawSkeleton (tmpGraph);
-            }
+            svg.drawSkeleton (*dbg.graph);
         }
 
         svg.drawPath (path);
