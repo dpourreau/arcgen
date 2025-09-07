@@ -1,0 +1,60 @@
+# Build trees (CMake/CLion/ninja/multi-config)
+build*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+Testing/
+
+# Generated dependency trees (FetchContent)
+*/_deps/
+
+# Installation & local output
+install/
+plots/
+out/
+
+# Tooling configs (usually user-specific)
+CMakeUserPresets.json
+CMakeSettings.json
+compile_commands.json
+
+# IDE/editor
+.vscode/
+.idea/
+*.code-workspace
+
+# OS cruft
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Backups & temp
+*.swp
+*.tmp
+*.bak
+*~
+
+# Binaries / objects / libraries
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.out
+*.exe
+
+# Logs
+*.log
+
+# Coverage / profiling
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# Test artifacts
+tests/**/output*
+
