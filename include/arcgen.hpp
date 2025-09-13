@@ -22,12 +22,14 @@
 #include <arcgen/steering/steering.hpp>    // CRTP base
 
 /*────────────────────────── Geometry ──────────────────────────*/
+#include <arcgen/geometry/robot.hpp>             // Polygonal robot + sweep utilities
 #include <arcgen/geometry/skeleton.hpp>          // Skeleton CRTP base
 #include <arcgen/geometry/straight_skeleton.hpp> // CGAL-based straight skeleton
 #include <arcgen/geometry/workspace.hpp>         // Valid-region workspace
 
 /*────────────────────────── Planning ──────────────────────────*/
 #include <arcgen/planning/constraints/collision.hpp>
+#include <arcgen/planning/constraints/footprint_collision.hpp>
 #include <arcgen/planning/constraints/path_length.hpp>
 #include <arcgen/planning/engine/search_engine.hpp>
 #include <arcgen/planning/search/astar.hpp>        // A* adaptor

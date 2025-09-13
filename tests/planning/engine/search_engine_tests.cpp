@@ -41,6 +41,10 @@ constexpr double STEP = 0.02;     ///< [m] steering discretisation
 constexpr double EPS_GOAL = 0.01; ///< [m] goal proximity
 constexpr int SAMPLES = 50;       ///< cases per workspace kind
 
+// Robot footprint used for footprint-aware tests
+constexpr double ROBOT_LEN = 1.3; ///< [m] rectangle length
+constexpr double ROBOT_WID = 0.7; ///< [m] rectangle width
+
 /* ───────── helpers ───────── */
 
 /// @brief Square helper.
@@ -88,34 +92,34 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     using SkeletonT = typename Cfg::Skeleton;
     using EngineT = engine::SearchEngine<SteeringT, SearchT, SkeletonT>;
 
-    EngineFixture () : rng_ (42), uni_ (0.0, 1.0) {}
+    EngineFixture () : randomEngine_ (42), unitUniform_ (0.0, 1.0) {}
 
     /// @brief Print mean planning time (once/type).
     static void TearDownTestSuite () { planStats_.printSummary (std::string (Cfg::name ()) + " – SearchEngine plan()"); }
 
     /**
      * @brief Pick a random interior (x,y) within the workspace envelope.
-     * @param W Workspace to sample inside.
+     * @param workspace Workspace to sample inside.
      * @param x Sampled X.
      * @param y Sampled Y.
      */
-    void sampleInteriorPosition (const Workspace &W, double &x, double &y)
+    void sampleInteriorPosition (const Workspace &workspace, double &x, double &y)
     {
         bg::model::box<Point> bb;
-        bg::envelope (W.region (), bb);
+        bg::envelope (workspace.region (), bb);
 
         std::uniform_real_distribution<double> ux (bb.min_corner ().x (), bb.max_corner ().x ());
         std::uniform_real_distribution<double> uy (bb.min_corner ().y (), bb.max_corner ().y ());
 
         do
         {
-            x = ux (rng_);
-            y = uy (rng_);
-        } while (!W.contains (x, y));
+            x = ux (randomEngine_);
+            y = uy (randomEngine_);
+        } while (!workspace.contains (x, y));
     }
 
     /// @brief Sample heading uniformly in [0, 2π).
-    double sampleHeading () { return std::uniform_real_distribution<double> (0.0, two_pi) (rng_); }
+    double sampleHeading () { return std::uniform_real_distribution<double> (0.0, PI2) (randomEngine_); }
 
     /**
      * @brief Ensure the sampled pose meets the “local reachability” rule via half-disks.
@@ -123,50 +127,63 @@ template <class Cfg> class EngineFixture : public ::testing::Test
      * Rules:
      *  - Dubins:   start requires forward cap inside; goal requires backward cap inside.
      *  - Reeds–Shepp: start/goal each require (forward || backward) cap inside.
-     * @param W        Workspace.
+     * @param workspace        Workspace.
      * @param s        Pose to validate.
      * @param isStart  True for start, false for goal.
      */
-    bool locallyReachable (const Workspace &W, const State &s, bool isStart) const
+    bool locallyReachable (const Workspace &workspace, const State &s, bool isStart, bool withFootprint) const
     {
         using test_helpers::halfDiskInside;
+
+        double radius = R_MIN * 2; // base local-reachability radius (point robot)
+
+        if (withFootprint)
+            radius += (ROBOT_LEN / 2.0);
 
         if constexpr (std::is_same_v<SteeringT, Dubins>)
         {
             const bool wantForward = isStart; // start→forward, goal→backward
-            return halfDiskInside (W, s.x, s.y, s.heading, R_MIN * 2, wantForward);
+            return halfDiskInside (workspace, s.x, s.y, s.heading, radius, wantForward);
         }
         else
         {
             // Reeds–Shepp: either direction is fine.
-            const bool fwd = halfDiskInside (W, s.x, s.y, s.heading, R_MIN * 2, true);
+            const bool fwd = halfDiskInside (workspace, s.x, s.y, s.heading, radius, true);
             if (fwd)
                 return true;
-            return halfDiskInside (W, s.x, s.y, s.heading, R_MIN * 2, false);
+            return halfDiskInside (workspace, s.x, s.y, s.heading, radius, false);
         }
     }
 
     /**
      * @brief Sample a start pose that is locally reachable per the chosen model.
-     * @param W Workspace.
+     * @param workspace Workspace.
      * @param s Output start state.
      */
-    void samplePoseStart (const Workspace &W, State &s)
+    void samplePoseStart (const Workspace &workspace, State &s, bool withFootprint = false)
     {
-        constexpr int MAX_TRIES = 1000;
+        constexpr int MAX_TRIES = 2000;
         for (int t = 0; t < MAX_TRIES; ++t)
         {
-            sampleInteriorPosition (W, s.x, s.y);
+            sampleInteriorPosition (workspace, s.x, s.y);
             s.heading = sampleHeading ();
             s.curvature = 0.0;
             s.direction = DrivingDirection::Neutral;
 
-            if (locallyReachable (W, s, /*isStart=*/true))
-                return;
+            if (!locallyReachable (workspace, s, /*isStart=*/true, withFootprint))
+                continue;
+
+            if (withFootprint)
+            {
+                Robot robot = Robot::rectangle (ROBOT_LEN, ROBOT_WID);
+                if (!workspace.coveredBy (robot.at (s)))
+                    continue;
+            }
+            return;
         }
         // Fallback: bias heading towards workspace center.
         bg::model::box<Point> bb;
-        bg::envelope (W.region (), bb);
+        bg::envelope (workspace.region (), bb);
         const double cx = 0.5 * (bb.min_corner ().x () + bb.max_corner ().x ());
         const double cy = 0.5 * (bb.min_corner ().y () + bb.max_corner ().y ());
         s.heading = std::atan2 (cy - s.y, cx - s.x);
@@ -174,25 +191,33 @@ template <class Cfg> class EngineFixture : public ::testing::Test
 
     /**
      * @brief Sample a goal pose that is locally reachable per the chosen model.
-     * @param W Workspace.
+     * @param workspace Workspace.
      * @param s Output goal state.
      */
-    void samplePoseGoal (const Workspace &W, State &s)
+    void samplePoseGoal (const Workspace &workspace, State &s, bool withFootprint = false)
     {
-        constexpr int MAX_TRIES = 1000;
+        constexpr int MAX_TRIES = 2000;
         for (int t = 0; t < MAX_TRIES; ++t)
         {
-            sampleInteriorPosition (W, s.x, s.y);
+            sampleInteriorPosition (workspace, s.x, s.y);
             s.heading = sampleHeading ();
             s.curvature = 0.0;
             s.direction = DrivingDirection::Neutral;
 
-            if (locallyReachable (W, s, /*isStart=*/false))
-                return;
+            if (!locallyReachable (workspace, s, /*isStart=*/false, withFootprint))
+                continue;
+
+            if (withFootprint)
+            {
+                Robot robot = Robot::rectangle (ROBOT_LEN, ROBOT_WID);
+                if (!workspace.coveredBy (robot.at (s)))
+                    continue;
+            }
+            return;
         }
         // Fallback: bias heading away from center (so its back faces the center).
         bg::model::box<Point> bb;
-        bg::envelope (W.region (), bb);
+        bg::envelope (workspace.region (), bb);
         const double cx = 0.5 * (bb.min_corner ().x () + bb.max_corner ().x ());
         const double cy = 0.5 * (bb.min_corner ().y () + bb.max_corner ().y ());
         const double toCenter = std::atan2 (cy - s.y, cx - s.x);
@@ -222,6 +247,31 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     }
 
     /**
+     * @brief Build an engine configured with footprint-aware collision and path length.
+     * @param workspace Shared workspace.
+     */
+    std::unique_ptr<EngineT> makeEngineWithFootprint (const std::shared_ptr<Workspace> &workspace)
+    {
+        auto steering = std::make_shared<SteeringT> (R_MIN, STEP);
+        auto search = std::make_shared<SearchT> ();
+        auto skeleton = std::make_shared<SkeletonT> ();
+
+        auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace);
+
+        namespace C = arcgen::planning::constraints;
+        using CSet = C::ConstraintSet<SteeringT::kSegments>;
+
+        // Choose a modest rectangle footprint (shared constants)
+        Robot robot = Robot::rectangle (ROBOT_LEN, ROBOT_WID);
+
+        CSet cs;
+        cs.hard.push_back (std::make_shared<C::FootprintCollisionConstraint<SteeringT::kSegments>> (workspace, robot));
+        cs.soft.push_back ({std::make_shared<C::PathLengthConstraint<SteeringT::kSegments>> (), 1.0});
+        eng->setConstraints (std::move (cs));
+        return eng;
+    }
+
+    /**
      * @brief Run one plan() on a given workspace (with plotting if enabled).
      *
      * Uses engine getters to access the existing components:
@@ -238,16 +288,16 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     {
         auto engine = makeEngine (workspace);
 
-        State a{}, b{};
-        samplePoseStart (*workspace, a);
-        samplePoseGoal (*workspace, b);
+        State start{}, goal{};
+        samplePoseStart (*workspace, start);
+        samplePoseGoal (*workspace, goal);
 
         typename EngineT::DebugInfo dbg;
         std::vector<State> path;
         {
             ScopedTimer t (planStats_);
             (void)t;
-            path = engine->plan (a, b, &dbg);
+            path = engine->plan (start, goal, &dbg);
         }
 
         bool ok = true;
@@ -257,7 +307,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
             ok = false;
             why << "empty path; ";
         }
-        else if (euclidean (path.back (), b) > EPS_GOAL)
+        else if (euclidean (path.back (), goal) > EPS_GOAL)
         {
             ok = false;
             why << "goal miss; ";
@@ -289,8 +339,6 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         }
 
         svg.drawPath (path);
-        svg.drawStartPose (a);
-        svg.drawGoalPose (b);
 
         // Debug overlays.
         for (const auto &s : dbg.coarse)
@@ -303,6 +351,10 @@ template <class Cfg> class EngineFixture : public ::testing::Test
                 svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0);
             }
         }
+
+        svg.drawStartPose (start);
+        svg.drawGoalPose (goal);
+
         svg.drawAxes ();
         svg.finish ();
 #endif
@@ -310,9 +362,115 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         ASSERT_TRUE (ok) << "Case " << id << " failed: " << why.str ();
     }
 
+    /**
+     * @brief Run one plan() using footprint-aware collision.
+     */
+    void runOneOnWorkspaceFootprint (const std::shared_ptr<Workspace> &workspace, int id, std::string_view label)
+    {
+        auto engine = makeEngineWithFootprint (workspace);
+
+        // Use the same footprint as makeEngineWithFootprint for prechecks & validation
+        Robot robot = Robot::rectangle (ROBOT_LEN, ROBOT_WID);
+
+        State start{}, goal{};
+        // Sample start/goal using footprint-aware reachability and ensure the footprint fits
+        samplePoseStart (*workspace, start, /*withFootprint=*/true);
+        samplePoseGoal (*workspace, goal, /*withFootprint=*/true);
+
+        typename EngineT::DebugInfo dbg;
+        std::vector<State> path;
+        {
+            ScopedTimer t (planStats_);
+            (void)t;
+            path = engine->plan (start, goal, &dbg);
+        }
+
+        bool ok = true;
+        std::ostringstream why;
+        if (path.empty ())
+        {
+            ok = false;
+            why << "empty path; ";
+        }
+        else if (euclidean (path.back (), goal) > EPS_GOAL)
+        {
+            ok = false;
+            why << "goal miss; ";
+        }
+
+        std::vector<std::size_t> badIdx;
+        if (!path.empty ())
+        {
+            for (std::size_t i = 0; i < path.size (); ++i)
+            {
+                if (!workspace->coveredBy (robot.at (path[i])))
+                    badIdx.push_back (i);
+            }
+
+            if (!badIdx.empty ())
+            {
+                ok = false;
+                why << "path leaves workspace; ";
+            }
+        }
+
+#ifdef AG_ENABLE_PLOTS
+        const char *tag = ok ? "ok" : "fail";
+        std::ostringstream fn;
+        fn << tag << "_fp_" << id << ".svg";
+        auto outPath = test_helpers::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
+
+        Visualizer svg (outPath.string (), 900);
+
+        if (auto wptr = engine->getWorkspace ())
+        {
+            svg.drawRegion (*wptr);
+        }
+        if (dbg.graph)
+        {
+            svg.drawSkeleton (*dbg.graph);
+        }
+
+        svg.drawPath (path);
+
+        for (const auto &s : dbg.coarse)
+            svg.drawPose (s, 6.0, "#ffb300ff");
+        for (auto [i, j] : dbg.stitchedPairs)
+        {
+            if (i < dbg.waypoints.size () && j < dbg.waypoints.size ())
+            {
+                std::array<State, 2> seg{dbg.waypoints[i], dbg.waypoints[j]};
+                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0);
+            }
+        }
+
+        // Draw robot footprint outlines along the path
+        if (!path.empty ())
+        {
+            const std::size_t n = path.size ();
+            std::size_t stride = (n > 81) ? 40 : (n > 51) ? 25 : 1;
+            for (std::size_t i = stride; i + stride < n; i += stride)
+                svg.drawPolygon (robot.at (path[i]), "none", "#375765ff", 0.8, 1.0);
+
+            for (std::size_t i : badIdx)
+                svg.drawPolygon (robot.at (path[i]), "none", "#ff4444", 0.9, 1.0);
+        }
+
+        svg.drawStartPose (start);
+        svg.drawGoalPose (goal);
+        svg.drawPolygon (robot.at (start), "none", "#375765ff", 0.8, 1.0);
+        svg.drawPolygon (robot.at (goal), "none", "#375765ff", 0.8, 1.0);
+
+        svg.drawAxes ();
+        svg.finish ();
+#endif
+
+        ASSERT_TRUE (ok) << "Footprint case " << id << " failed: " << why.str ();
+    }
+
   private:
-    std::mt19937 rng_;
-    std::uniform_real_distribution<double> uni_; // kept for future extensions
+    std::mt19937 randomEngine_;
+    std::uniform_real_distribution<double> unitUniform_; // kept for future extensions
 
     inline static RunningStats planStats_{};
 };
@@ -328,26 +486,53 @@ TYPED_TEST_SUITE (EngineFixture, TestedEngines);
 /// @test Random workspaces (fresh geometry every iteration).
 TYPED_TEST (EngineFixture, PlansWithinRandomWorkspaces)
 {
-    std::mt19937 rng (123);
+    std::mt19937 randomEngine (123);
     for (int k = 0; k < SAMPLES; ++k)
     {
-        auto W = test_helpers::randomWorkspace (rng);
-        this->runOneOnWorkspace (W, k, "random");
+        auto workspace = test_helpers::randomWorkspace (randomEngine);
+        this->runOneOnWorkspace (workspace, k, "random");
     }
 }
 
 /// @test Maze workspace (narrow corridors).
 TYPED_TEST (EngineFixture, PlansWithinMazeWorkspace)
 {
-    auto W = test_helpers::mazeWorkspace ();
+    auto workspace = test_helpers::mazeWorkspace ();
     for (int k = 0; k < SAMPLES; ++k)
-        this->runOneOnWorkspace (W, k, "maze");
+        this->runOneOnWorkspace (workspace, k, "maze");
 }
 
 /// @test Gear workspace (spiky outer ring + circular holes).
 TYPED_TEST (EngineFixture, PlansWithinGearWorkspace)
 {
-    auto W = test_helpers::gearWorkspace ();
+    auto workspace = test_helpers::gearWorkspace ();
     for (int k = 0; k < SAMPLES; ++k)
-        this->runOneOnWorkspace (W, k, "gear");
+        this->runOneOnWorkspace (workspace, k, "gear");
+}
+
+/// @test Random workspaces with footprint-aware collision.
+TYPED_TEST (EngineFixture, PlansWithinRandomWorkspacesWithFootprint)
+{
+    std::mt19937 randomEngine (456);
+    for (int k = 0; k < SAMPLES; ++k)
+    {
+        auto workspace = test_helpers::randomWorkspace (randomEngine);
+        this->runOneOnWorkspaceFootprint (workspace, k, "random_fp");
+    }
+}
+
+/// @test Maze workspace with footprint-aware collision.
+TYPED_TEST (EngineFixture, PlansWithinMazeWorkspaceWithFootprint)
+{
+    auto workspace = test_helpers::mazeWorkspace ();
+    for (int k = 0; k < SAMPLES; ++k)
+        this->runOneOnWorkspaceFootprint (workspace, k, "maze_fp");
+}
+
+/// @test Gear workspace with footprint-aware collision.
+TYPED_TEST (EngineFixture, PlansWithinGearWorkspaceWithFootprint)
+{
+    auto workspace = test_helpers::gearWorkspace ();
+    for (int k = 0; k < SAMPLES; ++k)
+        this->runOneOnWorkspaceFootprint (workspace, k, "gear_fp");
 }
