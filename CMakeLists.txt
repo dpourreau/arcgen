@@ -138,6 +138,7 @@ if(AG_BUILD_TESTS)
   add_executable(ag_tests
     tests/steering/steering_tests.cpp
     tests/geometry/skeleton_tests.cpp
+    tests/geometry/robot_tests.cpp
     tests/planning/search/graph_search_tests.cpp
     tests/planning/engine/search_engine_tests.cpp
   )

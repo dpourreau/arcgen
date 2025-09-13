@@ -113,12 +113,34 @@ namespace arcgen::geometry
         }
 
         /**
-         * @brief Check whether a polygon is fully inside the region.
-         * @tparam Poly Any Boost.Geometry Polygon.
-         * @param b AABB to test.
-         * @return True if @p b is fully covered by the valid region.
+         * @brief Optimized coverage test for a single polygon using the envelope R-tree.
+         *
+         * A connected polygon can only be fully covered if it lies entirely inside a
+         * single connected component of the valid region. We leverage the R-tree to
+         * filter candidate region polygons by envelope intersection and then run an
+         * exact covered_by() test against each candidate.
+         *
+         * @param p Polygon to test.
+         * @return True if @p p is fully covered by the valid region; false otherwise.
          */
-        template <class Poly> [[nodiscard]] bool coveredBy (const Poly &b) const { return bg::covered_by (b, region_); }
+        [[nodiscard]] bool coveredBy (const Polygon &p) const
+        {
+            if (region_.empty ())
+                return false;
+
+            BBox pb;
+            bg::envelope (p, pb);
+
+            for (const auto &entry : rtree_ | bgi::adaptors::queried (bgi::intersects (pb)))
+            {
+                const auto idx = entry.second;
+                if (bg::covered_by (p, region_[idx]))
+                    return true; // fully inside this connected component
+            }
+
+            // No candidate envelopes overlapped, or none fully covered the polygon
+            return false;
+        }
 
         /**
          * @brief Intersect the current valid region with an arbitrary polygon.

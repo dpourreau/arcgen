@@ -199,6 +199,56 @@ namespace test_helpers
         }
 
         /**
+         * @brief Draw a single polygon with custom style.
+         * @param poly         CCW, closed polygon.
+         * @param fill         Fill color (e.g., "#ff0000" or "none").
+         * @param stroke       Stroke color.
+         * @param strokeWidth  Stroke width in pixels.
+         * @param fillOpacity  Opacity for the fill [0..1].
+         */
+        void drawPolygon (const Polygon &poly, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0)
+        {
+            for (auto &v : poly.outer ())
+                trackWorld (v.x (), v.y ());
+            for (auto &hole : poly.inners ())
+                for (auto &v : hole)
+                    trackWorld (v.x (), v.y ());
+
+            ensureHeader ();
+            writeRingStyled (poly.outer (), fill, stroke, strokeWidth, fillOpacity);
+            for (const auto &hole : poly.inners ())
+                writeRingStyled (hole, palette_.regionFill, stroke, strokeWidth, 1.0);
+        }
+
+        /**
+         * @brief Draw a multi-polygon with custom style.
+         * @param mp           Multi-polygon (each with optional holes).
+         * @param fill         Fill color (e.g., "#ff0000" or "none").
+         * @param stroke       Stroke color.
+         * @param strokeWidth  Stroke width in pixels.
+         * @param fillOpacity  Opacity for the fill [0..1].
+         */
+        void drawMultiPolygon (const MultiPolygon &mp, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0)
+        {
+            for (const auto &poly : mp)
+            {
+                for (auto &v : poly.outer ())
+                    trackWorld (v.x (), v.y ());
+                for (auto &hole : poly.inners ())
+                    for (auto &v : hole)
+                        trackWorld (v.x (), v.y ());
+            }
+            ensureHeader ();
+
+            for (const auto &poly : mp)
+            {
+                writeRingStyled (poly.outer (), fill, stroke, strokeWidth, fillOpacity);
+                for (const auto &hole : poly.inners ())
+                    writeRingStyled (hole, palette_.regionFill, stroke, strokeWidth, 1.0);
+            }
+        }
+
+        /**
          * @brief Draw the valid-region polygons (outer rings + holes).
          * @param workspace   Valid region (multi-polygon).
          * @param strokeWidth Stroke width in pixels for region edges.
@@ -303,6 +353,18 @@ namespace test_helpers
         template <class Ring> void writeRing (const Ring &ring, const std::string &fill, const std::string &stroke, double strokeWidth)
         {
             out_ << "  <polygon fill=\"" << fill << "\" stroke=\"" << stroke << "\" stroke-width=\"" << strokeWidth << "\" points=\"";
+            for (auto &v : ring)
+            {
+                const auto [x, y] = toSvg (v.x (), v.y ());
+                out_ << x << ',' << y << ' ';
+            }
+            out_ << "\"/>\n";
+        }
+
+        // Styled ring writer with fill opacity parameter.
+        template <class Ring> void writeRingStyled (const Ring &ring, const std::string &fill, const std::string &stroke, double strokeWidth, double fillOpacity)
+        {
+            out_ << "  <polygon fill=\"" << fill << "\" fill-opacity=\"" << fillOpacity << "\" stroke=\"" << stroke << "\" stroke-width=\"" << strokeWidth << "\" points=\"";
             for (auto &v : ring)
             {
                 const auto [x, y] = toSvg (v.x (), v.y ());

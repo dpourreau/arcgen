@@ -125,7 +125,7 @@ int main() {
   bg::correct(hole1);
   bg::correct(hole2);
 
-  auto W = std::make_shared<Workspace>(
+  auto workspace = std::make_shared<Workspace>(
       std::move(outer),
       std::vector<Polygon>{std::move(hole1), std::move(hole2)});
 
@@ -135,11 +135,13 @@ int main() {
       std::make_shared<Dubins>(/*rMin=*/2.5, /*ds=*/0.10),
       std::make_shared<AStar<Graph>>(),
       std::make_shared<StraightSkeleton>(),
-      W);
+      workspace);
 
-  // 3) Constraints: collision (hard) + path length (soft)
+  // 3) Constraints: collision (hard) with a polygonal robot + path length (soft)
   C::ConstraintSet<Dubins::kSegments> cs;
-  cs.hard.push_back(std::make_shared<C::CollisionConstraint<Dubins::kSegments>>(W));
+  Robot robot = Robot::rectangle(/*length*/2.0, /*width*/0.8);
+  // For polygonal footprint collision, use FootprintCollisionConstraint
+  cs.hard.push_back(std::make_shared<C::FootprintCollisionConstraint<Dubins::kSegments>>(workspace, robot));
   cs.soft.push_back({std::make_shared<C::PathLengthConstraint<Dubins::kSegments>>(), 1.0});
   engine.setConstraints(std::move(cs));
 
@@ -195,7 +197,7 @@ CMake options (all `OFF` by default unless noted):
 Presets (`CMakePresets.json`) you can use out-of-the-box:
 
 * `debug` — Debug, tests ON, plots ON, OpenMP OFF
-* `release` — Release, OpenMP ON
+* `release` — Release, OpenMP OFF
 * `asan` — Debug with Address/UB sanitizers
 
 ## Repository layout
@@ -206,6 +208,10 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 ├── CMakePresets.json
 ├── cmake/
 │   └── arcgenConfig.cmake.in
+├── docs/
+│   ├── ARCHITECTURE.md                # High-level design overview
+│   ├── STYLE.md                       # Coding, docs, and formatting rules
+│   └── TROUBLESHOOTING.md             # Build and usage tips
 ├── include/
 │   └── arcgen/
 │       ├── arcgen.hpp                 # Umbrella header
@@ -215,6 +221,7 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │       │   ├── numeric.hpp            # constants & tolerances
 │       │   └── state.hpp              # pose/curvature/direction
 │       ├── geometry/
+│       │   ├── robot.hpp              # Polygonal robot model + transforms
 │       │   ├── skeleton.hpp           # CRTP base
 │       │   ├── straight_skeleton.hpp  # CGAL → Boost.Graph
 │       │   └── workspace.hpp          # polygon set + queries
@@ -222,6 +229,7 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │       │   ├── constraints/
 │       │   │   ├── collision.hpp
 │       │   │   ├── constraints.hpp    # Hard/Soft interfaces
+│       │   │   ├── footprint_collision.hpp
 │       │   │   └── path_length.hpp
 │       │   ├── engine/
 │       │   │   └── search_engine.hpp  # 3-stage planner
@@ -241,6 +249,7 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │   │   ├── visualizer.hpp
 │   │   └── workspace_generators.hpp
 │   ├── geometry/
+│   │   ├── robot_tests.cpp
 │   │   └── skeleton_tests.cpp
 │   ├── planning/
 │   │   ├── engine/search_engine_tests.cpp
@@ -271,6 +280,12 @@ ArcGen ships with four small but meaningful test suites (enabled when `AG_BUILD_
 - Use the `asan` preset for sanitizer builds: `cmake --preset asan && cmake --build --preset asan && ctest --preset asan`.
 - Plots are off by default; enable with `-DAG_ENABLE_PLOTS=ON` to get SVGs under `build/<preset>/plots/...`.
 
+## Documentation
+
+- `docs/STYLE.md` — Coding, documentation, and formatting guidelines.
+- `docs/ARCHITECTURE.md` — Overview of ArcGen internals and design.
+- `docs/TROUBLESHOOTING.md` — Common build and usage issues.
+
 ## Architecture
 
 At a glance:
@@ -291,7 +306,7 @@ See `docs/TROUBLESHOOTING.md` for common build and usage issues (CGAL config, GT
 
 ## To-Do
 
-- [ ] **Robot polygon model**
+- [x] **Robot polygon model**
   - Introduce a `Robot` class with a convex polygon footprint.
   - Update collision checks to treat the robot as an area, not a point.
 
