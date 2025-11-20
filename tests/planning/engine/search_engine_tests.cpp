@@ -348,7 +348,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
             if (i < dbg.waypoints.size () && j < dbg.waypoints.size ())
             {
                 std::array<State, 2> seg{dbg.waypoints[i], dbg.waypoints[j]};
-                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0);
+                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0, 1.0);
             }
         }
 
@@ -440,7 +440,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
             if (i < dbg.waypoints.size () && j < dbg.waypoints.size ())
             {
                 std::array<State, 2> seg{dbg.waypoints[i], dbg.waypoints[j]};
-                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0);
+                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0, 1.0);
             }
         }
 

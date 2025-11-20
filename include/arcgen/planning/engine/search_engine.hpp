@@ -232,7 +232,7 @@ namespace arcgen::planning::engine
          */
         [[nodiscard]] std::vector<State> plan (State &start, State &goal, DebugInfo *dbg)
         {
-            if (!steering_ || !graphSearch_ || !skeleton_)
+            if (!steering_ || !graphSearch_ || !skeleton_ || !workspace_)
                 return {}; // badly initialized
 
             // ── Stage 1: direct (enumerate + constraints)
@@ -435,6 +435,7 @@ namespace arcgen::planning::engine
                 return {};
 
             std::vector<State> out;
+            std::vector<std::pair<std::size_t, std::size_t>> stitched;
             std::vector<bool> triedFail (count * count, false);
 
             auto reachable = [&] (std::size_t i, std::size_t j) -> bool
@@ -452,7 +453,7 @@ namespace arcgen::planning::engine
                     out.insert (out.end (), best->states->begin (), best->states->end ());
 
                     if (dbg)
-                        dbg->stitchedPairs.emplace_back (i, j);
+                        stitched.emplace_back (i, j);
                     return true;
                 }
                 triedFail[i * count + j] = true;
@@ -482,6 +483,8 @@ namespace arcgen::planning::engine
 
                 i = j;
             }
+            if (dbg)
+                dbg->stitchedPairs = std::move (stitched);
             return out;
         }
 

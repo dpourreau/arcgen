@@ -21,8 +21,8 @@
 #include <arcgen/core/control.hpp>
 #include <arcgen/core/math.hpp>
 #include <arcgen/core/numeric.hpp>
-#include <arcgen/steering/path.hpp>
 #include <arcgen/core/state.hpp>
+#include <arcgen/steering/path.hpp>
 
 namespace arcgen::steering
 {
@@ -121,6 +121,8 @@ namespace arcgen::steering
 
             std::vector<Path<N>> out;
             const auto arcs = d ().getArcs (a, b);
+            if (arcs.empty ())
+                return out;
             out.reserve (arcs.size ());
 
             for (const auto &arc : arcs)

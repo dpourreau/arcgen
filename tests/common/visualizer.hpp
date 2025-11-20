@@ -43,7 +43,9 @@ namespace test_helpers
         std::string regionFill = "#e9fef2";   ///< Fill color for the valid region.
         std::string regionStroke = "#4f5b66"; ///< Stroke color for region outlines.
         std::string skeletonEdge = "#a7adba"; ///< Stroke color for skeleton edges.
-        std::string pathStroke = "#88d8b0";   ///< Stroke color for the sampled path polyline.
+        std::string pathForward = "#88d8b0";  ///< Stroke color for forward-motion segments.
+        std::string pathReverse = "#ef6c99";  ///< Stroke color for reverse-motion segments.
+        std::string pathNeutral = "#8f96a3";  ///< Stroke color for neutral / indeterminate segments.
         std::string startPose = "#462ac7";    ///< Fill color for the start pose marker.
         std::string goalPose = "#20b255";     ///< Fill color for the goal pose marker.
         std::string axes = "#c0c5ce";         ///< Stroke color for axes.
@@ -120,30 +122,68 @@ namespace test_helpers
         }
 
         /**
-         * @brief Draw a polyline from a sequence of states.
-         * @param points  Sampled states (x/y are used).
-         * @param color   Optional stroke color (defaults to @ref Palette::pathStroke).
-         * @param stroke  Stroke width in pixels.
+         * @brief Draw a polyline from a sequence of states while highlighting motion direction (forward vs. reverse).
+         * @param points Sampled states along the path.
+         * @param color   Optional stroke color (defaults to @ref Palette::pathForward).
+         * @param stroke Stroke width in pixels.
          */
-        void drawPath (std::span<const State> points, std::string color = {}, double stroke = 2.0)
+        void drawPath (std::span<const State> points, std::string color = {}, double stroke = 2.0, double opacity = 0.8)
         {
             if (points.empty ())
                 return;
-            if (color.empty ())
-                color = palette_.pathStroke;
 
             for (const auto &p : points)
                 trackWorld (p.x, p.y);
 
             ensureHeader ();
 
-            out_ << "  <polyline fill=\"none\" stroke=\"" << color << "\" stroke-width=\"" << stroke << "\" points=\"";
-            for (const auto &p : points)
+            const auto &palette = palette_;
+            const auto selectColor = [&] (DrivingDirection dir) -> const std::string &
             {
-                const auto [x, y] = toSvg (p.x, p.y);
-                out_ << x << ',' << y << ' ';
+                if (!color.empty ())
+                    return color;
+
+                switch (dir)
+                {
+                    case DrivingDirection::Forward:
+                        return palette.pathForward;
+                    case DrivingDirection::Reverse:
+                        return palette.pathReverse;
+                    default:
+                        return palette.pathNeutral;
+                }
+            };
+
+            auto emitSegment = [&] (std::size_t begin, std::size_t end, DrivingDirection dir)
+            {
+                if (end <= begin + 1)
+                    return;
+
+                const std::string &strokeColor = selectColor (dir);
+                out_ << "  <polyline fill=\"none\" stroke=\"" << strokeColor << "\" stroke-width=\"" << stroke << "\" stroke-opacity=\"" << opacity << "\" points=\"";
+                for (std::size_t idx = begin; idx < end; ++idx)
+                {
+                    const auto [x, y] = toSvg (points[idx].x, points[idx].y);
+                    out_ << x << ',' << y << ' ';
+                }
+                out_ << "\"/>\n";
+            };
+
+            std::size_t segBegin = 0;
+            DrivingDirection segDir = points.front ().direction;
+
+            for (std::size_t idx = 1; idx < points.size (); ++idx)
+            {
+                const DrivingDirection dir = points[idx].direction;
+                if (dir != segDir)
+                {
+                    emitSegment (segBegin, idx, segDir);
+                    segBegin = idx > 0 ? idx - 1 : idx;
+                    segDir = dir;
+                }
             }
-            out_ << "\"/>\n";
+
+            emitSegment (segBegin, points.size (), segDir);
         }
 
         /**
