@@ -10,7 +10,7 @@
  */
 
 #include <arcgen/core/state.hpp>
-#include <arcgen/planner/search/graph_search.hpp>
+#include <arcgen/planner/graph/graph_search.hpp>
 
 #include <boost/graph/astar_search.hpp>
 #include <boost/graph/graph_traits.hpp>

@@ -21,7 +21,7 @@
 #include <arcgen/planner/evaluator.hpp>
 #include <arcgen/planner/geometry/skeleton.hpp>
 #include <arcgen/planner/geometry/workspace.hpp>
-#include <arcgen/planner/search/graph_search.hpp>
+#include <arcgen/planner/graph/graph_search.hpp>
 #include <arcgen/steering/steering.hpp>
 
 #include <boost/geometry.hpp>
