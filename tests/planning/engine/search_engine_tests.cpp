@@ -24,11 +24,11 @@
 #include <vector>
 
 using namespace arcgen::core;
-using namespace arcgen::geometry;
+using namespace arcgen::planner;
+using namespace arcgen::planner::geometry;
 using namespace arcgen::steering;
-using namespace arcgen::planning;
-using arcgen::planning::search::AStar;
-namespace connector = arcgen::planning::engine::connector;
+using arcgen::planner::search::AStar;
+namespace connector = arcgen::planner::engine::connector;
 using test_helpers::RunningStats;
 using test_helpers::ScopedTimer;
 using test_helpers::Visualizer;
@@ -86,7 +86,7 @@ template <class SteeringT, class SearchT, class SkeletonT> struct EngineConfig
 template <class Cfg> class EngineFixture : public ::testing::Test
 {
   protected:
-    using Graph = arcgen::geometry::Graph;
+    using Graph = arcgen::planner::geometry::Graph;
     using SteeringT = typename Cfg::Steering;
     using SearchT = typename Cfg::Search;
     using SkeletonT = typename Cfg::Skeleton;
@@ -238,7 +238,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         auto connectorPtr = std::make_shared<ConnectorT> ();
         auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace, connectorPtr);
 
-        namespace C = arcgen::planning::constraints;
+        namespace C = arcgen::planner::constraints;
         using CSet = C::ConstraintSet<SteeringT::kSegments>;
 
         CSet cs;
@@ -261,7 +261,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         auto connectorPtr = std::make_shared<ConnectorT> ();
         auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace, connectorPtr);
 
-        namespace C = arcgen::planning::constraints;
+        namespace C = arcgen::planner::constraints;
         using CSet = C::ConstraintSet<SteeringT::kSegments>;
 
         // Choose a modest rectangle footprint (shared constants)
@@ -479,9 +479,10 @@ template <class Cfg> class EngineFixture : public ::testing::Test
 };
 
 /* ───────── instantiate engine combos here (extensible) ───────── */
-using GraphT = arcgen::geometry::Graph;
+using GraphT = arcgen::planner::geometry::Graph;
 using TestedEngines =
-    ::testing::Types<EngineConfig<Dubins, AStar<GraphT>, arcgen::geometry::StraightSkeleton>, EngineConfig<ReedsShepp, AStar<GraphT>, arcgen::geometry::StraightSkeleton>>;
+    ::testing::Types<EngineConfig<Dubins, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>,
+                     EngineConfig<ReedsShepp, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>>;
 TYPED_TEST_SUITE (EngineFixture, TestedEngines);
 
 /* ───────── tests over predefined and random workspaces ───────── */

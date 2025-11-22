@@ -32,7 +32,7 @@
 namespace test_helpers
 {
     using namespace arcgen::core;
-    using namespace arcgen::geometry;
+    using namespace arcgen::planner::geometry;
 
     /**
      * @brief Simple color palette for the SVG output.

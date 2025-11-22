@@ -13,15 +13,15 @@
  */
 
 #include <arcgen/core/state.hpp>
-#include <arcgen/geometry/skeleton.hpp>
-#include <arcgen/geometry/workspace.hpp>
-#include <arcgen/planning/constraints/collision.hpp>
-#include <arcgen/planning/constraints/constraints.hpp>
-#include <arcgen/planning/constraints/path_length.hpp>
-#include <arcgen/planning/engine/connector/connector.hpp>
-#include <arcgen/planning/engine/connector/greedy_connector.hpp>
-#include <arcgen/planning/engine/evaluator.hpp>
-#include <arcgen/planning/search/graph_search.hpp>
+#include <arcgen/planner/constraints/collision.hpp>
+#include <arcgen/planner/constraints/constraints.hpp>
+#include <arcgen/planner/constraints/path_length.hpp>
+#include <arcgen/planner/connector/connector.hpp>
+#include <arcgen/planner/connector/greedy_connector.hpp>
+#include <arcgen/planner/evaluator.hpp>
+#include <arcgen/planner/geometry/skeleton.hpp>
+#include <arcgen/planner/geometry/workspace.hpp>
+#include <arcgen/planner/search/graph_search.hpp>
 #include <arcgen/steering/steering.hpp>
 
 #include <boost/geometry.hpp>
@@ -36,10 +36,10 @@
 
 namespace bg = boost::geometry;
 
-namespace arcgen::planning::engine
+namespace arcgen::planner::engine
 {
     using namespace arcgen::core;
-    using namespace arcgen::geometry;
+    using namespace arcgen::planner::geometry;
 
     /**
      * @brief Concepts to validate template arguments at compile-time.
@@ -78,7 +78,7 @@ namespace arcgen::planning::engine
         using PathT = typename Steering::PathType;
         static constexpr std::size_t N = Steering::kSegments;
 
-        using ConstraintSet = arcgen::planning::constraints::ConstraintSet<N>;
+        using ConstraintSet = arcgen::planner::constraints::ConstraintSet<N>;
 
         /// Graph type produced by the skeleton generator.
         using GlobalGraph = std::decay_t<decltype (std::declval<Skeleton> ().generate (std::declval<const Workspace &> ()))>;
@@ -337,4 +337,4 @@ namespace arcgen::planning::engine
         ConstraintSet constraints_;                ///< Active constraints (hard + soft).
     };
 
-} // namespace arcgen::planning::engine
+} // namespace arcgen::planner::engine

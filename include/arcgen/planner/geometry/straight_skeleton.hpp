@@ -7,8 +7,8 @@
  * (border vertices are filtered out). Each edge is weighted by its Euclidean length.
  */
 
-#include <arcgen/geometry/skeleton.hpp>
-#include <arcgen/geometry/workspace.hpp>
+#include <arcgen/planner/geometry/skeleton.hpp>
+#include <arcgen/planner/geometry/workspace.hpp>
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -25,7 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace arcgen::geometry
+namespace arcgen::planner::geometry
 {
     /* ────────── CGAL / Boost aliases ────────────────────────────── */
     using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
@@ -204,4 +204,4 @@ namespace arcgen::geometry
         }
     };
 
-} // namespace arcgen::geometry
+} // namespace arcgen::planner::geometry

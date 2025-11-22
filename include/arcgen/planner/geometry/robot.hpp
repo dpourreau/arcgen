@@ -13,7 +13,7 @@
 
 #include <arcgen/core/math.hpp>
 #include <arcgen/core/state.hpp>
-#include <arcgen/geometry/workspace.hpp>
+#include <arcgen/planner/geometry/workspace.hpp>
 
 #include <boost/geometry.hpp>
 
@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-namespace arcgen::geometry
+namespace arcgen::planner::geometry
 {
     namespace bg = boost::geometry;
     using arcgen::core::State;
@@ -131,4 +131,4 @@ namespace arcgen::geometry
         Polygon body_{}; ///< Base polygon in body frame (CCW, closed; reference at origin).
     };
 
-} // namespace arcgen::geometry
+} // namespace arcgen::planner::geometry

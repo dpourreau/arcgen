@@ -11,7 +11,7 @@ Use the following conventions across all production code and tests:
 - Variables: camelCase (e.g., `radiusMin`, `workspace`, `halfLength`)
 - Constants: ALL_CAPS_WITH_UNDERSCORES (e.g., `PI2`, `R_MIN`, `EPS_GOAL`)
 - Private Member Variables: camelCase_ with trailing underscore (e.g., `workspace_`, `robot_`)
-- Namespaces: snake_case (e.g., `arcgen::geometry`, `arcgen::planning`)
+- Namespaces: snake_case (e.g., `arcgen::planner::geometry`, `arcgen::planner`)
 - Enums: `enum class` PascalCase with PascalCase enumerators (e.g., `enum class StageUsed { Direct, Local, Global };`)
 
 Prefer clear, descriptive identifiers over abbreviations. Loop indices like `i`, `j`, `k` are acceptable where customary.
@@ -78,4 +78,3 @@ Most editors can be configured to run `clang-format` on save. Keep diffs focused
 - Maintain exception safety (`noexcept` where possible) and correctness first; optimize only when needed.
 - For geometry: ensure polygons are CCW and closed; call `boost::geometry::correct()` where appropriate.
 - Prefer explicit units and clarify geometric frames (e.g., body-frame vs world-frame) in comments.
-

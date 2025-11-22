@@ -20,7 +20,7 @@
 #include <vector>
 
 using namespace arcgen::core;
-using namespace arcgen::geometry;
+using namespace arcgen::planner::geometry;
 using test_helpers::RunningStats;
 using test_helpers::ScopedTimer;
 using test_helpers::Visualizer;
@@ -75,7 +75,7 @@ template <class> struct NameTag
     static constexpr const char *str = "Generic";
 };
 
-using AStarSearch = arcgen::planning::search::AStar<arcgen::geometry::Graph>;
+using AStarSearch = arcgen::planner::search::AStar<arcgen::planner::geometry::Graph>;
 template <> struct NameTag<AStarSearch>
 {
     static constexpr const char *str = "AStar";
@@ -89,10 +89,10 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 {
   protected:
     using Search = SearchT;
-    using Graph = arcgen::geometry::Graph;
+    using Graph = arcgen::planner::geometry::Graph;
 
     inline static Workspace W_{*test_helpers::mazeWorkspace ()};
-    inline static arcgen::geometry::StraightSkeleton skel_;
+    inline static arcgen::planner::geometry::StraightSkeleton skel_;
     inline static Graph G_{skel_.generate (W_)};
     inline static RunningStats stats_{};
 

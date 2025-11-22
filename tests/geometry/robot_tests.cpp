@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief Unit tests for arcgen::geometry::Robot – SE(2) transforms,
+ * @brief Unit tests for arcgen::planner::geometry::Robot – SE(2) transforms,
  *        workspace coverage, and plotting helpers.
  */
 #include <arcgen.hpp>
@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-using namespace arcgen::geometry;
+using namespace arcgen::planner::geometry;
 using namespace arcgen::core;
 
 namespace bg = boost::geometry;

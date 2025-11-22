@@ -6,8 +6,7 @@
  * Include this single header in a translation unit to access the entire API:
  *  - Core primitives (state, math, numeric constants, controls)
  *  - Steering CRTP base and policies (Dubins, Reeds–Shepp)
- *  - Geometry (workspace, straight skeleton + CRTP base)
- *  - Planning (constraints, search engine, graph-search CRTP + A*)
+ *  - Planner module (workspace, straight skeleton, constraints, search engine, graph-search CRTP + A*)
  */
 
 /*──────────────────────────── Core ────────────────────────────*/
@@ -21,17 +20,15 @@
 #include <arcgen/steering/reeds_shepp.hpp> // Reeds–Shepp policy (5 segments)
 #include <arcgen/steering/steering.hpp>    // CRTP base
 
-/*────────────────────────── Geometry ──────────────────────────*/
-#include <arcgen/geometry/robot.hpp>             // Polygonal robot + sweep utilities
-#include <arcgen/geometry/skeleton.hpp>          // Skeleton CRTP base
-#include <arcgen/geometry/straight_skeleton.hpp> // CGAL-based straight skeleton
-#include <arcgen/geometry/workspace.hpp>         // Valid-region workspace
-
-/*────────────────────────── Planning ──────────────────────────*/
-#include <arcgen/planning/constraints/collision.hpp>
-#include <arcgen/planning/constraints/footprint_collision.hpp>
-#include <arcgen/planning/constraints/path_length.hpp>
-#include <arcgen/planning/engine/connector/greedy_connector.hpp>
-#include <arcgen/planning/engine/search_engine.hpp>
-#include <arcgen/planning/search/astar.hpp>        // A* adaptor
-#include <arcgen/planning/search/graph_search.hpp> // Graph-search CRTP base
+/*────────────────────────── Planner ───────────────────────────*/
+#include <arcgen/planner/constraints/collision.hpp>
+#include <arcgen/planner/constraints/footprint_collision.hpp>
+#include <arcgen/planner/constraints/path_length.hpp>
+#include <arcgen/planner/connector/greedy_connector.hpp>
+#include <arcgen/planner/geometry/robot.hpp>             // Polygonal robot + sweep utilities
+#include <arcgen/planner/geometry/skeleton.hpp>          // Skeleton CRTP base
+#include <arcgen/planner/geometry/straight_skeleton.hpp> // CGAL-based straight skeleton
+#include <arcgen/planner/geometry/workspace.hpp>         // Valid-region workspace
+#include <arcgen/planner/search/astar.hpp>               // A* adaptor
+#include <arcgen/planner/search/graph_search.hpp>        // Graph-search CRTP base
+#include <arcgen/planner/search_engine.hpp>              // Three-stage planner

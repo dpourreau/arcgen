@@ -5,13 +5,13 @@
  */
 
 #include <arcgen/core/state.hpp>
-#include <arcgen/planning/engine/evaluator.hpp>
+#include <arcgen/planner/evaluator.hpp>
 
 #include <concepts>
 #include <utility>
 #include <vector>
 
-namespace arcgen::planning::engine::connector
+namespace arcgen::planner::engine::connector
 {
     /**
      * @brief Compile-time contract for connector implementations.
@@ -22,4 +22,4 @@ namespace arcgen::planning::engine::connector
         { c.connect (evaluator, start, goal, std::move (coarse), dbg) } -> std::same_as<std::vector<arcgen::core::State>>;
     };
 
-} // namespace arcgen::planning::engine::connector
+} // namespace arcgen::planner::engine::connector

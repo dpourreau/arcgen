@@ -12,7 +12,7 @@
 
 namespace test_helpers
 {
-    using namespace arcgen::geometry;
+    using namespace arcgen::planner::geometry;
     using arcgen::core::PI;
     using arcgen::core::PI2;
 

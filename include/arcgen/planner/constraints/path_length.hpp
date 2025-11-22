@@ -4,9 +4,9 @@
  * @brief Soft constraint that penalizes candidate paths by their total length.
  */
 
-#include <arcgen/planning/constraints/constraints.hpp>
+#include <arcgen/planner/constraints/constraints.hpp>
 
-namespace arcgen::planning::constraints
+namespace arcgen::planner::constraints
 {
     using arcgen::steering::Path;
 
@@ -30,4 +30,4 @@ namespace arcgen::planning::constraints
         double cost (const Path<N> &cand, const EvalContext<N> & /*ctx*/) const noexcept override { return cand.length (); }
     };
 
-} // namespace arcgen::planning::constraints
+} // namespace arcgen::planner::constraints

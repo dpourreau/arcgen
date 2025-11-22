@@ -5,13 +5,13 @@
  *  Discretises the path and verifies all states lie inside.
  */
 
-#include <arcgen/geometry/workspace.hpp>
-#include <arcgen/planning/constraints/constraints.hpp>
+#include <arcgen/planner/constraints/constraints.hpp>
+#include <arcgen/planner/geometry/workspace.hpp>
 
 #include <memory>
 #include <utility>
 
-namespace arcgen::planning::constraints
+namespace arcgen::planner::constraints
 {
     using arcgen::steering::Path;
 
@@ -27,7 +27,7 @@ namespace arcgen::planning::constraints
          * @param workspace Shared pointer to a valid-region workspace
          *                  (may be null; a null or empty workspace accepts all paths).
          */
-        explicit CollisionConstraint (std::shared_ptr<const arcgen::geometry::Workspace> workspace) : workspace_ (std::move (workspace)) {}
+        explicit CollisionConstraint (std::shared_ptr<const arcgen::planner::geometry::Workspace> workspace) : workspace_ (std::move (workspace)) {}
 
         /**
          * @brief Check whether a candidate path is collision free.
@@ -46,7 +46,7 @@ namespace arcgen::planning::constraints
         }
 
       private:
-        std::shared_ptr<const arcgen::geometry::Workspace> workspace_; ///< Workspace used for collision queries.
+        std::shared_ptr<const arcgen::planner::geometry::Workspace> workspace_; ///< Workspace used for collision queries.
     };
 
-} // namespace arcgen::planning::constraints
+} // namespace arcgen::planner::constraints

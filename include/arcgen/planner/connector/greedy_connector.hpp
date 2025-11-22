@@ -4,7 +4,7 @@
  * @brief Greedy farthest-reachable connector (default stitching strategy).
  */
 
-#include <arcgen/planning/engine/connector/connector.hpp>
+#include <arcgen/planner/connector/connector.hpp>
 
 #include <arcgen/core/math.hpp>
 #include <arcgen/core/numeric.hpp>
@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-namespace arcgen::planning::engine::connector
+namespace arcgen::planner::engine::connector
 {
     /**
      * @brief Greedy connector that assigns headings to coarse waypoints and stitches them with farthest-reachable jumps.
@@ -140,4 +140,4 @@ namespace arcgen::planning::engine::connector
         pts.back ().heading = pts[n - 2].heading;
     }
 
-} // namespace arcgen::planning::engine::connector
+} // namespace arcgen::planner::engine::connector

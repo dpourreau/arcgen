@@ -5,7 +5,7 @@
  */
 
 #include <arcgen/core/state.hpp>
-#include <arcgen/planning/constraints/constraints.hpp>
+#include <arcgen/planner/constraints/constraints.hpp>
 #include <arcgen/steering/steering.hpp>
 
 #include <limits>
@@ -16,7 +16,7 @@
     #include <omp.h>
 #endif
 
-namespace arcgen::planning::engine
+namespace arcgen::planner::engine
 {
     /**
      * @brief Evaluates steering candidates against constraints and picks the best feasible one.
@@ -28,8 +28,8 @@ namespace arcgen::planning::engine
       public:
         using PathT = typename Steering::PathType;
         static constexpr std::size_t N = Steering::kSegments;
-        using ConstraintSet = arcgen::planning::constraints::ConstraintSet<N>;
-        using EvalContext = arcgen::planning::constraints::EvalContext<N>;
+        using ConstraintSet = arcgen::planner::constraints::ConstraintSet<N>;
+        using EvalContext = arcgen::planner::constraints::EvalContext<N>;
 
         Evaluator (const Steering *steering, const ConstraintSet *constraints) : steering_ (steering), constraints_ (constraints) {}
 
@@ -115,4 +115,4 @@ namespace arcgen::planning::engine
         const ConstraintSet *constraints_{nullptr};
     };
 
-} // namespace arcgen::planning::engine
+} // namespace arcgen::planner::engine

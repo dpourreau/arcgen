@@ -15,15 +15,11 @@ This document provides a deeper look at how ArcGen is structured and how the maj
   - `dubins.hpp` / `reeds_shepp.hpp`: shortest path generators producing fixed-length arc patterns
   - `path.hpp`: candidate container with controls and lazily-computed states
 
-- Geometry (`include/arcgen/geometry`)
-  - `workspace.hpp`: polygonal valid region (outer minus holes), with an R-tree for fast point queries
-  - `straight_skeleton.hpp`: builds an interior straight skeleton (CGAL) and converts to a Boost undirected graph with Euclidean edge weights
-  - `skeleton.hpp`: CRTP façade for skeleton generators
-
-- Planning (`include/arcgen/planning`)
-  - Constraints: `constraints.hpp` (interfaces), `collision.hpp` (hard), `path_length.hpp` (soft)
-  - Search: `graph_search.hpp` (CRTP), `astar.hpp` (Boost.Graph A* adaptor)
-  - Engine: `engine/search_engine.hpp` — 3-stage planner orchestrating steering, skeleton generation, and graph search
+- Planner (`include/arcgen/planner`)
+  - Geometry: `geometry/workspace.hpp` (polygonal valid region with R-tree), `geometry/straight_skeleton.hpp` (CGAL → Boost graph), `geometry/skeleton.hpp` (CRTP façade)
+  - Constraints: `constraints.hpp` (interfaces), `collision.hpp` (hard), `footprint_collision.hpp` (hard), `path_length.hpp` (soft)
+  - Search: `search/graph_search.hpp` (CRTP), `search/astar.hpp` (Boost.Graph A* adaptor)
+  - Engine: `search_engine.hpp` and `connector/greedy_connector.hpp` — three-stage planner orchestrating steering, skeleton generation, and graph search
 
 ## Engine Pipeline
 
@@ -46,4 +42,3 @@ The final path is formed by greedy stitching of steering segments between waypoi
 - Tune `ds` (state discretisation) to balance accuracy vs speed.
 - Enable OpenMP (`-DAG_ENABLE_OPENMP=ON`) to parallelise candidate evaluation.
 - Skeleton graphs avoid duplicate edges; A* uses Euclidean heuristic.
-

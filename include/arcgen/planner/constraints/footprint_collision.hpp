@@ -11,9 +11,9 @@
 
 #include <arcgen/core/math.hpp>
 #include <arcgen/core/numeric.hpp>
-#include <arcgen/geometry/robot.hpp>
-#include <arcgen/geometry/workspace.hpp>
-#include <arcgen/planning/constraints/constraints.hpp>
+#include <arcgen/planner/constraints/constraints.hpp>
+#include <arcgen/planner/geometry/robot.hpp>
+#include <arcgen/planner/geometry/workspace.hpp>
 
 #include <boost/geometry.hpp>
 
@@ -22,15 +22,15 @@
 #include <utility>
 #include <vector>
 
-namespace arcgen::planning::constraints
+namespace arcgen::planner::constraints
 {
     namespace bg = boost::geometry;
     using arcgen::core::State;
-    using arcgen::geometry::BBox;
-    using arcgen::geometry::Point;
-    using arcgen::geometry::Polygon;
-    using arcgen::geometry::Robot;
-    using arcgen::geometry::Workspace;
+    using arcgen::planner::geometry::BBox;
+    using arcgen::planner::geometry::Point;
+    using arcgen::planner::geometry::Polygon;
+    using arcgen::planner::geometry::Robot;
+    using arcgen::planner::geometry::Workspace;
     using arcgen::steering::Path;
 
     /**
@@ -142,4 +142,4 @@ namespace arcgen::planning::constraints
         }
     };
 
-} // namespace arcgen::planning::constraints
+} // namespace arcgen::planner::constraints

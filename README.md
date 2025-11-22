@@ -108,12 +108,12 @@ ctest --preset debug --output-on-failure
 #include <vector>
 
 using namespace arcgen::core;
-using namespace arcgen::geometry;
-using arcgen::planning::engine::SearchEngine;
-using arcgen::planning::search::AStar;
-namespace connector = arcgen::planning::engine::connector;
+using namespace arcgen::planner::geometry;
+using arcgen::planner::engine::SearchEngine;
+using arcgen::planner::search::AStar;
+namespace connector = arcgen::planner::engine::connector;
 using arcgen::steering::Dubins;
-namespace C  = arcgen::planning::constraints;
+namespace C  = arcgen::planner::constraints;
 namespace bg = boost::geometry;
 
 int main() {
@@ -131,7 +131,7 @@ int main() {
       std::vector<Polygon>{std::move(hole1), std::move(hole2)});
 
   // 2) Engine = Dubins + A* + StraightSkeleton
-  using Graph = arcgen::geometry::Graph;
+  using Graph = arcgen::planner::geometry::Graph;
   using Engine = SearchEngine<Dubins, AStar<Graph>, StraightSkeleton>;
   auto engine = Engine(
       std::make_shared<Dubins>(/*rMin=*/2.5, /*ds=*/0.10),
@@ -223,26 +223,25 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │       │   ├── math.hpp               # angle helpers, endpoints, etc.
 │       │   ├── numeric.hpp            # constants & tolerances
 │       │   └── state.hpp              # pose/curvature/direction
-│       ├── geometry/
-│       │   ├── robot.hpp              # Polygonal robot model + transforms
-│       │   ├── skeleton.hpp           # CRTP base
-│       │   ├── straight_skeleton.hpp  # CGAL → Boost.Graph
-│       │   └── workspace.hpp          # polygon set + queries
-│       ├── planning/
+│       ├── planner/
 │       │   ├── constraints/
 │       │   │   ├── collision.hpp
 │       │   │   ├── constraints.hpp    # Hard/Soft interfaces
 │       │   │   ├── footprint_collision.hpp
 │       │   │   └── path_length.hpp
-│       │   ├── engine/
-│       │   │   ├── connector/         # Stitching strategies
-│       │   │   │   ├── connector.hpp  # Connector concept
-│       │   │   │   └── greedy_connector.hpp
-│       │   │   ├── evaluator.hpp      # Constraint-aware candidate selector
-│       │   │   └── search_engine.hpp  # 3-stage planner
-│       │   └── search/
-│       │       ├── astar.hpp          # A* adaptor
-│       │       └── graph_search.hpp   # CRTP base
+│       │   ├── connector/             # Stitching strategies
+│       │   │   ├── connector.hpp      # Connector concept
+│       │   │   └── greedy_connector.hpp
+│       │   ├── geometry/
+│       │   │   ├── robot.hpp          # Polygonal robot model + transforms
+│       │   │   ├── skeleton.hpp       # CRTP base
+│       │   │   ├── straight_skeleton.hpp  # CGAL → Boost.Graph
+│       │   │   └── workspace.hpp      # polygon set + queries
+│       │   ├── search/
+│       │   │   ├── astar.hpp          # A* adaptor
+│       │   │   └── graph_search.hpp   # CRTP base
+│       │   ├── evaluator.hpp          # Constraint-aware candidate selector
+│       │   └── search_engine.hpp      # 3-stage planner
 │       └── steering/
 │           ├── dubins.hpp
 │           ├── reeds_shepp.hpp
@@ -299,11 +298,7 @@ At a glance:
 
 - Core: math helpers, numeric tolerances, state/control primitives.
 - Steering: CRTP base + Dubins/Reeds–Shepp policies that enumerate geometric candidates and discretise states using `ds`.
-- Geometry: polygonal `Workspace` (Boost.Geometry) and interior straight skeleton (CGAL) converted to a Boost undirected graph.
-- Planning:
-  - Constraints: hard (feasibility) and soft (weighted cost), e.g., collision and path‑length.
-  - Search: A* adaptor over the skeleton with Euclidean heuristic.
-  - Engine: 3‑stage planner — direct steering → local skeleton → global skeleton (cached) with greedy stitching.
+- Planner: geometry (polygonal `Workspace`, straight skeleton graph), constraints (collision, footprint, path-length), graph-search CRTP + A*, and a 3‑stage engine (direct → local skeleton → global skeleton with greedy stitching).
 
 See `docs/ARCHITECTURE.md` for more.
 

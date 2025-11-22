@@ -13,7 +13,7 @@
 
 namespace test_helpers
 {
-    using namespace arcgen::geometry;
+    using namespace arcgen::planner::geometry;
     using arcgen::core::PI;
 
     namespace bg = boost::geometry;

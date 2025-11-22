@@ -19,7 +19,7 @@
 #include <string_view>
 #include <vector>
 
-using namespace arcgen::geometry;
+using namespace arcgen::planner::geometry;
 using namespace arcgen::core;
 using test_helpers::RunningStats;
 using test_helpers::ScopedTimer;
@@ -58,7 +58,7 @@ template <> struct SkelName<StraightSkeleton>
 template <class SkeletonT> class SkeletonFixture : public ::testing::Test
 {
   protected:
-    using Graph = arcgen::geometry::Graph;
+    using Graph = arcgen::planner::geometry::Graph;
     using VDesc = boost::graph_traits<Graph>::vertex_descriptor;
     using EDesc = boost::graph_traits<Graph>::edge_descriptor;
 

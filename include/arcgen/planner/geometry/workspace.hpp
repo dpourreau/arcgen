@@ -5,7 +5,7 @@
  *          as (outer ⊖ ⋃obstacles) and provides fast spatial queries.
  *
  * - Both outer and obstacle polygons must already include any safety margin.
- * - All polygons are CCW and closed (arcgen::geometry::Polygon = bg::polygon<Point, false, true>).
+ * - All polygons are CCW and closed (arcgen::planner::geometry::Polygon = bg::polygon<Point, false, true>).
 
  */
 
@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 
-namespace arcgen::geometry
+namespace arcgen::planner::geometry
 {
     using namespace arcgen::core;
 
@@ -187,4 +187,4 @@ namespace arcgen::geometry
         /* The final valid region (possibly multiple disjoint polygons with holes). */
         MultiPolygon region_;
     };
-} // namespace arcgen::geometry
+} // namespace arcgen::planner::geometry

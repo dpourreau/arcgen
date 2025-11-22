@@ -9,7 +9,7 @@
  *   generate(const WorkspaceType& workspace) const.
  */
 
-namespace arcgen::geometry
+namespace arcgen::planner::geometry
 {
     /**
      * @brief Detection concept for the CRTP hook of @ref SkeletonBase.
@@ -49,4 +49,4 @@ namespace arcgen::geometry
         ~SkeletonBase () = default;
     };
 
-} // namespace arcgen::geometry
+} // namespace arcgen::planner::geometry

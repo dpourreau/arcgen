@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-namespace arcgen::planning::constraints
+namespace arcgen::planner::constraints
 {
     using arcgen::core::State;
     using arcgen::steering::Path;
@@ -120,4 +120,4 @@ namespace arcgen::planning::constraints
         }
     };
 
-} // namespace arcgen::planning::constraints
+} // namespace arcgen::planner::constraints

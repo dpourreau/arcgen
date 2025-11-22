@@ -10,7 +10,7 @@
  */
 
 #include <arcgen/core/state.hpp>
-#include <arcgen/planning/search/graph_search.hpp>
+#include <arcgen/planner/search/graph_search.hpp>
 
 #include <boost/graph/astar_search.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -23,7 +23,7 @@
 #include <optional>
 #include <vector>
 
-namespace arcgen::planning::search
+namespace arcgen::planner::search
 {
     using arcgen::core::State;
 
@@ -163,4 +163,4 @@ namespace arcgen::planning::search
         }
     };
 
-} // namespace arcgen::planning::search
+} // namespace arcgen::planner::search
