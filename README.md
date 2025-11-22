@@ -111,6 +111,7 @@ using namespace arcgen::core;
 using namespace arcgen::geometry;
 using arcgen::planning::engine::SearchEngine;
 using arcgen::planning::search::AStar;
+namespace connector = arcgen::planning::engine::connector;
 using arcgen::steering::Dubins;
 namespace C  = arcgen::planning::constraints;
 namespace bg = boost::geometry;
@@ -131,11 +132,13 @@ int main() {
 
   // 2) Engine = Dubins + A* + StraightSkeleton
   using Graph = arcgen::geometry::Graph;
-  auto engine = SearchEngine<Dubins, AStar<Graph>, StraightSkeleton>(
+  using Engine = SearchEngine<Dubins, AStar<Graph>, StraightSkeleton>;
+  auto engine = Engine(
       std::make_shared<Dubins>(/*rMin=*/2.5, /*ds=*/0.10),
       std::make_shared<AStar<Graph>>(),
       std::make_shared<StraightSkeleton>(),
-      workspace);
+      workspace,
+      std::make_shared<connector::GreedyConnector<Dubins, Engine::DebugInfo>>());
 
   // 3) Constraints: collision (hard) with a polygonal robot + path length (soft)
   C::ConstraintSet<Dubins::kSegments> cs;
@@ -232,6 +235,10 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │       │   │   ├── footprint_collision.hpp
 │       │   │   └── path_length.hpp
 │       │   ├── engine/
+│       │   │   ├── connector/         # Stitching strategies
+│       │   │   │   ├── connector.hpp  # Connector concept
+│       │   │   │   └── greedy_connector.hpp
+│       │   │   ├── evaluator.hpp      # Constraint-aware candidate selector
 │       │   │   └── search_engine.hpp  # 3-stage planner
 │       │   └── search/
 │       │       ├── astar.hpp          # A* adaptor

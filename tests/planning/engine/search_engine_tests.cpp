@@ -1,7 +1,6 @@
 /**
- * @file engine_getters_tests.cpp
- * @brief End-to-end planning tests that visualize results using engine getters
- *        (workspace, skeleton, cached global graph) instead of rebuilding components.
+ * @file search_engine_tests.cpp
+ * @brief End-to-end planning tests that plot and validate paths produced by SearchEngine.
  */
 
 #include <arcgen.hpp>
@@ -29,6 +28,7 @@ using namespace arcgen::geometry;
 using namespace arcgen::steering;
 using namespace arcgen::planning;
 using arcgen::planning::search::AStar;
+namespace connector = arcgen::planning::engine::connector;
 using test_helpers::RunningStats;
 using test_helpers::ScopedTimer;
 using test_helpers::Visualizer;
@@ -91,6 +91,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     using SearchT = typename Cfg::Search;
     using SkeletonT = typename Cfg::Skeleton;
     using EngineT = engine::SearchEngine<SteeringT, SearchT, SkeletonT>;
+    using ConnectorT = typename EngineT::ConnectorType;
 
     EngineFixture () : randomEngine_ (42), unitUniform_ (0.0, 1.0) {}
 
@@ -234,7 +235,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         auto search = std::make_shared<SearchT> ();
         auto skeleton = std::make_shared<SkeletonT> ();
 
-        auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace);
+        auto connectorPtr = std::make_shared<ConnectorT> ();
+        auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace, connectorPtr);
 
         namespace C = arcgen::planning::constraints;
         using CSet = C::ConstraintSet<SteeringT::kSegments>;
@@ -256,7 +258,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         auto search = std::make_shared<SearchT> ();
         auto skeleton = std::make_shared<SkeletonT> ();
 
-        auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace);
+        auto connectorPtr = std::make_shared<ConnectorT> ();
+        auto eng = std::make_unique<EngineT> (steering, search, skeleton, workspace, connectorPtr);
 
         namespace C = arcgen::planning::constraints;
         using CSet = C::ConstraintSet<SteeringT::kSegments>;

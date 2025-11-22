@@ -31,6 +31,7 @@
 #include <arcgen/planning/constraints/collision.hpp>
 #include <arcgen/planning/constraints/footprint_collision.hpp>
 #include <arcgen/planning/constraints/path_length.hpp>
+#include <arcgen/planning/engine/connector/greedy_connector.hpp>
 #include <arcgen/planning/engine/search_engine.hpp>
 #include <arcgen/planning/search/astar.hpp>        // A* adaptor
 #include <arcgen/planning/search/graph_search.hpp> // Graph-search CRTP base
