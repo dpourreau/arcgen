@@ -300,7 +300,9 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         {
             ScopedTimer t (planStats_);
             (void)t;
-            path = engine->plan (start, goal, &dbg);
+            auto result = engine->plan (start, goal, &dbg);
+            if (result)
+                path = *result;
         }
 
         bool ok = true;
@@ -385,7 +387,9 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         {
             ScopedTimer t (planStats_);
             (void)t;
-            path = engine->plan (start, goal, &dbg);
+            auto result = engine->plan (start, goal, &dbg);
+            if (result)
+                path = *result;
         }
 
         bool ok = true;
@@ -480,9 +484,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
 
 /* ───────── instantiate engine combos here (extensible) ───────── */
 using GraphT = arcgen::planner::geometry::Graph;
-using TestedEngines =
-    ::testing::Types<EngineConfig<Dubins, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>,
-                     EngineConfig<ReedsShepp, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>>;
+using TestedEngines = ::testing::Types<EngineConfig<Dubins, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>,
+                                       EngineConfig<ReedsShepp, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>>;
 TYPED_TEST_SUITE (EngineFixture, TestedEngines);
 
 /* ───────── tests over predefined and random workspaces ───────── */

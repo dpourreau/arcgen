@@ -13,11 +13,11 @@
  */
 
 #include <arcgen/core/state.hpp>
+#include <arcgen/planner/connector/connector.hpp>
+#include <arcgen/planner/connector/greedy_connector.hpp>
 #include <arcgen/planner/constraints/collision.hpp>
 #include <arcgen/planner/constraints/constraints.hpp>
 #include <arcgen/planner/constraints/path_length.hpp>
-#include <arcgen/planner/connector/connector.hpp>
-#include <arcgen/planner/connector/greedy_connector.hpp>
 #include <arcgen/planner/evaluator.hpp>
 #include <arcgen/planner/geometry/skeleton.hpp>
 #include <arcgen/planner/geometry/workspace.hpp>
@@ -36,10 +36,24 @@
 
 namespace bg = boost::geometry;
 
+#include <expected>
+
 namespace arcgen::planner::engine
 {
     using namespace arcgen::core;
     using namespace arcgen::planner::geometry;
+
+    /**
+     * @brief Error codes for the planning process.
+     */
+    enum class PlanningError
+    {
+        None,
+        InvalidInput,  ///< Start/Goal invalid or in collision
+        NoPathFound,   ///< No feasible path found
+        InternalError, ///< Engine not initialized correctly
+        Timeout        ///< (Reserved for future use)
+    };
 
     /**
      * @brief Concepts to validate template arguments at compile-time.
@@ -234,21 +248,25 @@ namespace arcgen::planner::engine
          * @brief Plan without debug info.
          * @param start Start state (unchanged).
          * @param goal  Goal state (unchanged).
-         * @return Discretized collision-free path; empty on failure.
+         * @return Discretized collision-free path or error code.
          */
-        [[nodiscard]] std::vector<State> plan (State &start, State &goal) { return plan (start, goal, nullptr); }
+        [[nodiscard]] std::expected<std::vector<State>, PlanningError> plan (State &start, State &goal) { return plan (start, goal, nullptr); }
 
         /**
          * @brief Plan with optional debug capture.
          * @param start Start state (unchanged).
          * @param goal  Goal state (unchanged).
          * @param dbg   Optional debug capture (can be nullptr).
-         * @return Discretized collision-free path; empty on failure.
+         * @return Discretized collision-free path or error code.
          */
-        [[nodiscard]] std::vector<State> plan (State &start, State &goal, DebugInfo *dbg)
+        [[nodiscard]] std::expected<std::vector<State>, PlanningError> plan (State &start, State &goal, DebugInfo *dbg)
         {
             if (!steering_ || !graphSearch_ || !skeleton_ || !workspace_ || !connector_)
-                return {}; // badly initialized
+                return std::unexpected (PlanningError::InternalError); // badly initialized
+
+            // Check if start/goal are in valid region (basic check)
+            if (!workspace_->contains (start.x, start.y) || !workspace_->contains (goal.x, goal.y))
+                return std::unexpected (PlanningError::InvalidInput);
 
             Evaluator<Steering> evaluator (steering_.get (), &constraints_);
 
@@ -271,12 +289,11 @@ namespace arcgen::planner::engine
                 }
             }
 
-            // Small helper to run graph-search + stitching on an arbitrary graph
-            auto tryGraph = [&] (auto &&graph, typename DebugInfo::StageUsed stage) -> std::vector<State>
+            auto tryGraph = [&] (auto &&graph, typename DebugInfo::StageUsed stage) -> std::optional<std::vector<State>>
             {
                 auto coarse = graphSearch_->search (graph, start, goal);
                 if (coarse.size () < 2)
-                    return {};
+                    return std::nullopt;
 
                 if (dbg)
                 {
@@ -284,7 +301,10 @@ namespace arcgen::planner::engine
                     dbg->graph = graph; // copy for visualization
                 }
 
-                return connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
+                auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
+                if (path.empty ())
+                    return std::nullopt;
+                return path;
             };
 
             // ── Stage 2: local skeleton (axis-aligned rectangle around start/goal + margin)
@@ -309,8 +329,8 @@ namespace arcgen::planner::engine
                 if (!localValid.empty ())
                 {
                     auto localGraph = skeleton_->generate (localValid);
-                    if (auto path = tryGraph (localGraph, DebugInfo::StageUsed::Local); !path.empty ())
-                        return path;
+                    if (auto path = tryGraph (localGraph, DebugInfo::StageUsed::Local))
+                        return *path;
                 }
             }
 
@@ -322,9 +342,12 @@ namespace arcgen::planner::engine
             }
 
             if (!globalGraph_)
-                return {}; // workspace empty or skeleton generation failed
+                return std::unexpected (PlanningError::NoPathFound); // workspace empty or skeleton generation failed
 
-            return tryGraph (*globalGraph_, DebugInfo::StageUsed::Global);
+            if (auto path = tryGraph (*globalGraph_, DebugInfo::StageUsed::Global))
+                return *path;
+
+            return std::unexpected (PlanningError::NoPathFound);
         }
 
       private:

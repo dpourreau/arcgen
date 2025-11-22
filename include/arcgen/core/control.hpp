@@ -63,16 +63,18 @@ namespace arcgen::core
         /**
          * @brief Append a control.
          * @param c Control to append.
+         * @return True if appended, false if the sequence was full.
          *
          * On success increments @ref n and increases @ref length by |c.arcLength|.
          */
-        constexpr void push_back (Control c) noexcept
+        constexpr bool push_back (Control c) noexcept
         {
             assert (n < N && "ControlSeq overflow");
             if (n >= N)
-                return;
+                return false;
             buf[n++] = c;
             length += std::fabs (c.arcLength);
+            return true;
         }
 
         /**

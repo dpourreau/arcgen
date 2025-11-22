@@ -151,13 +151,14 @@ int main() {
   // 4) Plan between poses
   State start{2,  2, 0.0};
   State goal {35, 25, 0.0};
-  auto path = engine.plan(start, goal);
+  auto result = engine.plan(start, goal);
 
-  if (path.empty()) {
-    std::cerr << "No path found.\n";
+  if (!result) {
+    std::cerr << "No path found. Error code: " << (int)result.error() << "\n";
     return 1; // failure
   }
 
+  auto path = *result;
   std::cout << "Path states: " << path.size() << "\n";
   return 0; // success
 }
