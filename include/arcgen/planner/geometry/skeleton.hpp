@@ -42,11 +42,17 @@ namespace arcgen::planner::geometry
             return static_cast<const Derived &> (*this).generateImpl (workspace);
         }
 
+      public:
+        /// @brief Set max distance for edge interpolation (0 = disabled).
+        void setMaxInterpolationDistance (double dist) { maxInterpolationDistance_ = dist; }
+
       protected:
         /// @brief Defaulted constructor.
         SkeletonBase () = default;
         /// @brief Defaulted destructor (protected to prevent slicing).
         ~SkeletonBase () = default;
+
+        double maxInterpolationDistance_ = 3.0; ///< Max distance for edge splitting (default 3m).
     };
 
 } // namespace arcgen::planner::geometry

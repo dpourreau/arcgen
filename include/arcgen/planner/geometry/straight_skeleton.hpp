@@ -200,7 +200,74 @@ namespace arcgen::planner::geometry
                     weightMap[e] = dist;
                 }
             }
+
+            // Post-process: interpolate edges
+            if (maxInterpolationDistance_ > 0.0)
+                interpolateEdges (graph, maxInterpolationDistance_);
+
             return graph;
+        }
+
+      private:
+        /**
+         * @brief Subdivide edges longer than maxDist by inserting intermediate nodes.
+         *
+         * @param graph   The skeleton graph to modify in-place.
+         * @param maxDist Maximum allowed edge length (meters).
+         *
+         * @note This function modifies the graph in-place by:
+         *       - Removing edges that exceed `maxDist`
+         *       - Adding new vertices at interpolated positions
+         *       - Creating new edges connecting the interpolated vertices
+         * @note Edge weights are preserved as Euclidean distances.
+         * @note If `maxDist` ≤ 0, the function returns immediately without modification.
+         */
+        static void interpolateEdges (Graph &graph, double maxDist)
+        {
+            if (maxDist <= 0.0)
+                return;
+
+            std::vector<std::pair<Graph::vertex_descriptor, Graph::vertex_descriptor>> edgesToRemove;
+            std::vector<std::pair<Graph::vertex_descriptor, Graph::vertex_descriptor>> originalEdges;
+            for (auto [ei, end] = boost::edges (graph); ei != end; ++ei)
+            {
+                originalEdges.emplace_back (boost::source (*ei, graph), boost::target (*ei, graph));
+            }
+
+            auto weightMap = get (boost::edge_weight, graph);
+
+            for (const auto &[u, v] : originalEdges)
+            {
+                const Point p0 = graph[u];
+                const Point p1 = graph[v];
+                const double dx = p1.x () - p0.x ();
+                const double dy = p1.y () - p0.y ();
+                const double len = std::hypot (dx, dy);
+
+                if (len > maxDist)
+                {
+                    // Remove original edge
+                    boost::remove_edge (u, v, graph);
+
+                    const int splits = static_cast<int> (std::ceil (len / maxDist));
+                    const double stepX = dx / splits;
+                    const double stepY = dy / splits;
+                    const double stepLen = len / splits;
+
+                    auto prevV = u;
+                    for (int i = 1; i < splits; ++i)
+                    {
+                        Point newP{p0.x () + i * stepX, p0.y () + i * stepY};
+                        auto newV = add_vertex (newP, graph);
+                        auto [e, ok] = add_edge (prevV, newV, graph);
+                        weightMap[e] = stepLen;
+                        prevV = newV;
+                    }
+                    // Connect to final
+                    auto [e, ok] = add_edge (prevV, v, graph);
+                    weightMap[e] = stepLen;
+                }
+            }
         }
     };
 

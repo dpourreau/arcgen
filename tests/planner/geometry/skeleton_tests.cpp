@@ -258,13 +258,49 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
         }
     }
 
+    /**
+     * @brief Run interpolation test on a workspace.
+     */
+    void runInterpolationCase (const Workspace &W, int id, std::string_view label)
+    {
+        if (W.empty ())
+            return;
+
+        // Enable interpolation with a small enough distance to force splits
+        this->skel_.setMaxInterpolationDistance (1.0);
+        Graph G = this->skel_.generate (W);
+
+        double maxLen = 0;
+        auto weightMap = get (boost::edge_weight, G);
+        for (auto [ei, end] = boost::edges (G); ei != end; ++ei)
+            maxLen = std::max (maxLen, weightMap[*ei]);
+
+        bool ok = maxLen <= 1.0 + 1e-5;
+        EXPECT_TRUE (ok) << "Case " << label << ": Interpolation failed (max edge " << maxLen << " > 1.0)";
+
+#ifdef AG_ENABLE_PLOTS
+        {
+            const char *tag = ok ? "ok" : "fail";
+            std::ostringstream fn;
+            fn << tag << "_interp_" << id << ".svg";
+            auto outPath = test_helpers::plotFile ({"skeleton", SkelName<SkeletonT>::value, "interp", std::string (label)}, fn.str ());
+            Visualizer svg (outPath.string (), 900);
+            svg.drawRegion (W);
+            svg.drawSkeleton (G);
+            svg.drawAxes ();
+            svg.finish ();
+        }
+#endif
+    }
+
     std::mt19937 &rng () { return rng_; }
     const std::mt19937 &rng () const { return rng_; }
 
-  private:
+  protected:
     SkeletonT skel_;
     std::mt19937 rng_;
 
+  private:
     inline static RunningStats globalStats_{};
     inline static RunningStats localStats_{};
 };
@@ -293,4 +329,19 @@ TYPED_TEST (SkeletonFixture, LocalAroundRandomPairs)
     }
     this->runLocalCases (*test_helpers::mazeWorkspace (), 2001, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "maze");
     this->runLocalCases (*test_helpers::gearWorkspace (), 2002, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "gear");
+}
+
+/* ───────────── modification tests ───────────── */
+TYPED_TEST (SkeletonFixture, Interpolation)
+{
+    // Run on standard maps
+    this->runInterpolationCase (*test_helpers::mazeWorkspace (), 3001, "maze");
+    this->runInterpolationCase (*test_helpers::gearWorkspace (), 3002, "gear");
+
+    // Run on a few random workspaces
+    for (int k = 0; k < 5; ++k)
+    {
+        auto w = *test_helpers::randomWorkspace (this->rng ());
+        this->runInterpolationCase (w, 3100 + k, "random");
+    }
 }
