@@ -25,7 +25,7 @@ ArcGen is designed to be easy to drop into an existing CMake project via `find_p
 
   * Hard: e.g., collision feasibility against the workspace.
   * Soft: weighted costs (e.g., total path length).
-* **Search engine pipeline**: direct → local (AABB around poses) → global (cached), with greedy stitching.
+* **Search engine pipeline**: direct → local (AABB around poses) → global (cached). The final path is formed by greedy stitching of steering segments between waypoints, followed by an iterative local smoothing pass to improve path quality.
 * **Tests & plots**: property, timing, and end-to-end tests; optional SVG visualizer for quick inspection.
 
 ## Requirements
@@ -194,15 +194,20 @@ CMake options (all `OFF` by default unless noted):
 
 * `AG_BUILD_TESTS` — build unit/property/timing tests (requires GTest).
 * `AG_ENABLE_PLOTS` — enable SVG plot generation inside tests.
+  - `debug`, `asan`, `release-tests`, `release-plots` presets are also available.
+  - `debug`, `asan`, and `release-plots` enable plot generation by default.
+  - `release` and `release-tests` do not generate plots.
 * `AG_STRICT_WARNINGS` (**ON** by default) — a strict warnings profile.
 * `AG_ENABLE_IPO` — turn on LTO/IPO if supported.
 * `AG_ENABLE_OPENMP` — enable OpenMP in ArcGen (and propagate flags).
 
 Presets (`CMakePresets.json`) you can use out-of-the-box:
 
-* `debug` — Debug, tests ON, plots ON, OpenMP OFF
-* `release` — Release, OpenMP OFF
-* `asan` — Debug with Address/UB sanitizers
+-   `debug`: Debug symbols, tests ON, plots ON (default).
+-   `release`: Optimizations, tests OFF, plots OFF.
+-   `release-tests`: Optimizations, tests ON, plots OFF.
+-   `release-plots`: Optimizations, tests ON, plots ON.
+-   `asan`: AddressSanitizer + UndefinedBehaviorSanitizer (Debug).
 
 ## Repository layout
 
@@ -313,9 +318,9 @@ See `docs/TROUBLESHOOTING.md` for common build and usage issues (CGAL config, GT
   - Introduce a `Robot` class with a convex polygon footprint.
   - Update collision checks to treat the robot as an area, not a point.
 
-- [ ] **Shortcuts & smoothing**
+- [x] **Shortcuts & smoothing**
   - Geometric shortcutting with feasibility recheck.
-  - Curvature-aware smoothing (e.g., cubic/clothoid) while preserving workspace feasibility.
+  - Steering-aware smoothing while preserving workspace feasibility.
 
 - [ ] **Stitching strategies**
   - Alternatives to greedy farthest-reachable: k-skip lookahead, DP with penalties, bidirectional stitching.

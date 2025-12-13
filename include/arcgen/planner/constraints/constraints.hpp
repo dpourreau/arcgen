@@ -8,8 +8,8 @@
  * evaluates feasibility and computes weighted scores.
  */
 
-#include <arcgen/steering/path.hpp>
 #include <arcgen/core/state.hpp>
+#include <arcgen/steering/path.hpp>
 
 #include <functional>
 #include <limits>
@@ -72,6 +72,11 @@ namespace arcgen::planner::constraints
          * @return Finite cost; return +∞ to effectively reject the candidate.
          */
         virtual double cost (const Path<N> &cand, const EvalContext<N> &ctx) const noexcept = 0;
+
+        /**
+         * @brief Get the unique name of this constraint for debugging/statistics.
+         */
+        virtual std::string name () const = 0;
     };
 
     /**

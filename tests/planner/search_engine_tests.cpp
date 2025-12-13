@@ -15,8 +15,10 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <random>
 #include <sstream>
 #include <string>
@@ -275,6 +277,109 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     }
 
     /**
+     * @brief Saves debug artifacts (SVGs and text stats) to the build directory.
+     *
+     * Iterates through the documented history steps in `dbg` and produces:
+     *  - An SVG plot for each step, visualizing the path, resampled points, fixed anchors, and the workspace.
+     *  - A corresponding text file containing cost breakdowns, soft constraint scores, and timing information.
+     *
+     * @param id     Test case identifier.
+     * @param label  Label for grouping plots.
+     * @param ok     Whether the test case succeeded.
+     * @param engine Reference to the search engine (for workspace access).
+     * @param dbg    Debug info containing the history of steps.
+     * @param start  Start state.
+     * @param goal   Goal state.
+     * @param robot  Optional robot footprint for visualization.
+     */
+    void saveDebugArtifacts ([[maybe_unused]] int id, [[maybe_unused]] std::string_view label, [[maybe_unused]] bool ok, [[maybe_unused]] const EngineT &engine,
+                             [[maybe_unused]] const typename EngineT::DebugInfo &dbg, [[maybe_unused]] const State &start, [[maybe_unused]] const State &goal,
+                             [[maybe_unused]] const std::optional<Robot> &robot = std::nullopt)
+    {
+#ifdef AG_ENABLE_PLOTS
+        int stepIdx = 0;
+        for (const auto &step : dbg.history)
+        {
+            const char *tag = ok ? "ok" : "fail";
+            std::string safeName = step.name;
+            std::replace (safeName.begin (), safeName.end (), ' ', '_');
+
+            std::ostringstream fn;
+            fn << tag << "_" << (robot ? "fp_" : "") << id << "_step_" << stepIdx++ << "_" << safeName << ".svg";
+            auto outPath = test_helpers::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
+
+            Visualizer svg (outPath.string (), 900);
+
+            if (auto wptr = engine.getWorkspace ())
+            {
+                svg.drawRegion (*wptr);
+            }
+            if (dbg.graph)
+            {
+                svg.drawSkeleton (*dbg.graph);
+            }
+
+            svg.drawPath (step.path);
+
+            // Resampled Points (Indices/Interpolated with fixed candidates) -> Orange, Small
+            for (const auto &s : step.resampledPoints)
+                svg.drawPose (s, 6.0, "#ffb300ff");
+
+            // Fixed Anchors (Waypoints/Joints) -> Purple, Big
+            for (const auto &s : step.fixedAnchors)
+                svg.drawPose (s, 9.0, "#800080ff");
+
+            // Draw robot footprint outlines along the step path if robot is present
+            if (robot && !step.path.empty ())
+            {
+                const std::size_t n = step.path.size ();
+                std::size_t stride = (n > 81) ? 40 : (n > 51) ? 25 : 1;
+                for (std::size_t i = stride; i + stride < n; i += stride)
+                    svg.drawPolygon (robot->at (step.path[i]), "none", "#375765ff", 0.8, 1.0);
+            }
+
+            svg.drawStartPose (start);
+            svg.drawGoalPose (goal);
+            if (robot)
+            {
+                svg.drawPolygon (robot->at (start), "none", "#375765ff", 0.8, 1.0);
+                svg.drawPolygon (robot->at (goal), "none", "#375765ff", 0.8, 1.0);
+            }
+
+            svg.drawAxes ();
+            svg.finish ();
+        }
+
+        // Generate stats text file
+        {
+            const char *tag = ok ? "ok" : "fail";
+            std::ostringstream fnStats;
+            fnStats << tag << "_" << (robot ? "fp_" : "") << id << "_stats.txt";
+            auto statsPath = test_helpers::plotFile ({"engine", Cfg::name (), std::string (label)}, fnStats.str ());
+            std::ofstream ofs (statsPath);
+            if (ofs)
+            {
+                for (const auto &step : dbg.history)
+                {
+                    ofs << "Step: " << step.name << "\n";
+                    ofs << "Total Cost: " << step.stats.totalCost << "\n";
+                    if (!step.stats.softConstraints.empty ())
+                    {
+                        ofs << "Soft Constraints:\n";
+                        for (const auto &[k, v] : step.stats.softConstraints)
+                        {
+                            ofs << "  " << k << ": " << v << "\n";
+                        }
+                    }
+                    ofs << "Computation Time: " << step.computationTime << "s\n";
+                    ofs << "--------------------------------------------------\n";
+                }
+            }
+        }
+#endif
+    }
+
+    /**
      * @brief Run one plan() on a given workspace (with plotting if enabled).
      *
      * Uses engine getters to access the existing components:
@@ -287,7 +392,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
      * @param id         Case id for file naming.
      * @param label      Group label (used in plot subdirectory).
      */
-    void runOneOnWorkspace (const std::shared_ptr<Workspace> &workspace, int id, std::string_view label)
+    void runOneOnWorkspace (const std::shared_ptr<Workspace> &workspace, int id, [[maybe_unused]] std::string_view label)
     {
         auto engine = makeEngine (workspace);
 
@@ -295,12 +400,18 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         samplePoseStart (*workspace, start);
         samplePoseGoal (*workspace, goal);
 
+#ifdef AG_ENABLE_PLOTS
         typename EngineT::DebugInfo dbg;
+        typename EngineT::DebugInfo *dbgPtr = &dbg;
+#else
+        typename EngineT::DebugInfo *dbgPtr = nullptr;
+#endif
+
         std::vector<State> path;
         {
             ScopedTimer t (planStats_);
             (void)t;
-            auto result = engine->plan (start, goal, &dbg);
+            auto result = engine->plan (start, goal, dbgPtr);
             if (result)
                 path = *result;
         }
@@ -324,44 +435,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         }
 
 #ifdef AG_ENABLE_PLOTS
-        const char *tag = ok ? "ok" : "fail";
-        std::ostringstream fn;
-        fn << tag << '_' << id << ".svg";
-        auto outPath = test_helpers::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
-
-        Visualizer svg (outPath.string (), 900);
-
-        // Draw region from the engine's current workspace (getter).
-        if (auto wptr = engine->getWorkspace ())
-        {
-            svg.drawRegion (*wptr);
-        }
-
-        // Draw the actual skeleton graph used (local/global) if present in debug info.
-        if (dbg.graph)
-        {
-            svg.drawSkeleton (*dbg.graph);
-        }
-
-        svg.drawPath (path);
-
-        // Debug overlays.
-        for (const auto &s : dbg.coarse)
-            svg.drawPose (s, 6.0, "#ffb300ff");
-        for (auto [i, j] : dbg.stitchedPairs)
-        {
-            if (i < dbg.waypoints.size () && j < dbg.waypoints.size ())
-            {
-                std::array<State, 2> seg{dbg.waypoints[i], dbg.waypoints[j]};
-                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0, 1.0);
-            }
-        }
-
-        svg.drawStartPose (start);
-        svg.drawGoalPose (goal);
-
-        svg.drawAxes ();
-        svg.finish ();
+        saveDebugArtifacts (id, label, ok, *engine, dbg, start, goal);
 #endif
 
         ASSERT_TRUE (ok) << "Case " << id << " failed: " << why.str ();
@@ -370,7 +444,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     /**
      * @brief Run one plan() using footprint-aware collision.
      */
-    void runOneOnWorkspaceFootprint (const std::shared_ptr<Workspace> &workspace, int id, std::string_view label)
+    void runOneOnWorkspaceFootprint (const std::shared_ptr<Workspace> &workspace, int id, [[maybe_unused]] std::string_view label)
     {
         auto engine = makeEngineWithFootprint (workspace);
 
@@ -382,12 +456,18 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         samplePoseStart (*workspace, start, /*withFootprint=*/true);
         samplePoseGoal (*workspace, goal, /*withFootprint=*/true);
 
+#ifdef AG_ENABLE_PLOTS
         typename EngineT::DebugInfo dbg;
+        typename EngineT::DebugInfo *dbgPtr = &dbg;
+#else
+        typename EngineT::DebugInfo *dbgPtr = nullptr;
+#endif
+
         std::vector<State> path;
         {
             ScopedTimer t (planStats_);
             (void)t;
-            auto result = engine->plan (start, goal, &dbg);
+            auto result = engine->plan (start, goal, dbgPtr);
             if (result)
                 path = *result;
         }
@@ -422,54 +502,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         }
 
 #ifdef AG_ENABLE_PLOTS
-        const char *tag = ok ? "ok" : "fail";
-        std::ostringstream fn;
-        fn << tag << "_fp_" << id << ".svg";
-        auto outPath = test_helpers::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
-
-        Visualizer svg (outPath.string (), 900);
-
-        if (auto wptr = engine->getWorkspace ())
-        {
-            svg.drawRegion (*wptr);
-        }
-        if (dbg.graph)
-        {
-            svg.drawSkeleton (*dbg.graph);
-        }
-
-        svg.drawPath (path);
-
-        for (const auto &s : dbg.coarse)
-            svg.drawPose (s, 6.0, "#ffb300ff");
-        for (auto [i, j] : dbg.stitchedPairs)
-        {
-            if (i < dbg.waypoints.size () && j < dbg.waypoints.size ())
-            {
-                std::array<State, 2> seg{dbg.waypoints[i], dbg.waypoints[j]};
-                svg.drawPath (std::span<const State> (seg.data (), seg.size ()), "#b833ccff", 1.0, 1.0);
-            }
-        }
-
-        // Draw robot footprint outlines along the path
-        if (!path.empty ())
-        {
-            const std::size_t n = path.size ();
-            std::size_t stride = (n > 81) ? 40 : (n > 51) ? 25 : 1;
-            for (std::size_t i = stride; i + stride < n; i += stride)
-                svg.drawPolygon (robot.at (path[i]), "none", "#375765ff", 0.8, 1.0);
-
-            for (std::size_t i : badIdx)
-                svg.drawPolygon (robot.at (path[i]), "none", "#ff4444", 0.9, 1.0);
-        }
-
-        svg.drawStartPose (start);
-        svg.drawGoalPose (goal);
-        svg.drawPolygon (robot.at (start), "none", "#375765ff", 0.8, 1.0);
-        svg.drawPolygon (robot.at (goal), "none", "#375765ff", 0.8, 1.0);
-
-        svg.drawAxes ();
-        svg.finish ();
+        saveDebugArtifacts (id, label, ok, *engine, dbg, start, goal, robot);
 #endif
 
         ASSERT_TRUE (ok) << "Footprint case " << id << " failed: " << why.str ();

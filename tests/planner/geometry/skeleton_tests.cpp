@@ -77,7 +77,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
      * @param id  Case id (used only for debug/plots).
      * @param id  Label (used only for plots).
      */
-    void runGlobalCase (const Workspace &W, int id, std::string_view label)
+    void runGlobalCase (const Workspace &W, [[maybe_unused]] int id, [[maybe_unused]] std::string_view label)
     {
         Graph G;
 
@@ -145,7 +145,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     /**
      * @brief Run local (stage-2 equivalent) checks around random pose pairs.
      */
-    void runLocalCases (const Workspace &W, int wid, int pairCount, double rMin, double marginMult, std::string_view label)
+    void runLocalCases (const Workspace &W, int wid, int pairCount, double rMin, double marginMult, [[maybe_unused]] std::string_view label)
     {
         if (W.empty ())
             return;

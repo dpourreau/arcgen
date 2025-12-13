@@ -108,20 +108,29 @@ namespace arcgen::planner::engine
          */
         struct DebugInfo
         {
-            /// Which planning stage produced the result.
-            enum class StageUsed : std::uint8_t
+            struct TrajectoryStats
             {
-                Direct,
-                Local,
-                Global
+                double totalCost{0.0};
+                std::unordered_map<std::string, double> softConstraints;
             };
 
-            StageUsed stage{StageUsed::Direct};                             ///< Stage that succeeded.
-            std::vector<State> coarse;                                      ///< Output of graph search (+ assigned headings)
-            std::vector<State> waypoints;                                   ///< start + coarse + goal (connector input)
-            std::vector<std::pair<std::size_t, std::size_t>> stitchedPairs; ///< (i, j) indices in @ref waypoints that were stitched
+            struct Step
+            {
+                std::string name;
+                std::vector<State> path;
+                std::vector<State> fixedAnchors;    // Purple/Big
+                std::vector<State> resampledPoints; // Orange/Small
+                TrajectoryStats stats;
+                double computationTime{0.0};
+            };
 
-            // Skeleton graph actually used (copied) when stage is Local/Global; empty for Direct.
+            /// Sequence of algorithmic steps (initial stitch, smoothing iterations, etc.)
+            std::vector<Step> history;
+
+            /// High-level component profiling (e.g., "Skeleton", "Graph Search").
+            std::unordered_map<std::string, double> componentTimes;
+
+            // Skeleton graph actually used (copied) when associated with a stage.
             std::optional<GlobalGraph> graph;
         };
 
@@ -261,6 +270,13 @@ namespace arcgen::planner::engine
          */
         [[nodiscard]] std::expected<std::vector<State>, PlanningError> plan (State &start, State &goal, DebugInfo *dbg)
         {
+            if (dbg)
+            {
+                dbg->history.clear ();
+                dbg->componentTimes.clear ();
+                dbg->graph.reset ();
+            }
+
             if (!steering_ || !graphSearch_ || !skeleton_ || !workspace_ || !connector_)
                 return std::unexpected (PlanningError::InternalError); // badly initialized
 
@@ -272,32 +288,48 @@ namespace arcgen::planner::engine
 
             // ── Stage 1: direct (enumerate + constraints)
             {
-                if (auto bestStates = evaluator.bestStatesBetween (start, goal))
+                // Measure time? Direct connection is usually negligible but we can add it if needed.
+                if (auto best = evaluator.bestStatesBetween (start, goal))
                 {
                     if (dbg)
                     {
-                        dbg->stage = DebugInfo::StageUsed::Direct;
-                        dbg->coarse.clear ();
-                        dbg->waypoints.clear ();
-                        dbg->waypoints.push_back (start);
-                        dbg->waypoints.push_back (goal);
-                        dbg->stitchedPairs.clear ();
-                        dbg->stitchedPairs.emplace_back (0, 1);
-                        dbg->graph.reset ();
+                        // Record direct connection as a step
+                        typename DebugInfo::Step step;
+                        step.name = "Direct";
+                        step.path = best->first;
+                        step.stats.totalCost = best->second;
+                        if (const auto *cset = evaluator.getConstraints ())
+                        {
+                            if (!cset->soft.empty ())
+                            {
+                                // Recalculate breakdown if needed or assumption: single segment cost is simple.
+                                // NOTE: Detailed breakdown would require constraints->score to return breakdown.
+                                // For now, we can just manually score soft constraints if we want breakdown.
+                            }
+                        }
+                        dbg->history.push_back (std::move (step));
                     }
-                    return *bestStates;
+                    return best->first;
                 }
             }
 
-            auto tryGraph = [&] (auto &&graph, typename DebugInfo::StageUsed stage) -> std::optional<std::vector<State>>
+            auto tryGraph = [&] (auto &&graph, std::string stageName) -> std::optional<std::vector<State>>
             {
+                // Measure Graph Search Time
+                auto t0 = std::chrono::steady_clock::now ();
                 auto coarse = graphSearch_->search (graph, start, goal);
+                auto t1 = std::chrono::steady_clock::now ();
+
+                if (dbg)
+                {
+                    dbg->componentTimes["Graph Search (" + stageName + ")"] = std::chrono::duration<double> (t1 - t0).count ();
+                }
+
                 if (coarse.size () < 2)
                     return std::nullopt;
 
                 if (dbg)
                 {
-                    dbg->stage = stage;
                     dbg->graph = graph; // copy for visualization
                 }
 
@@ -328,8 +360,13 @@ namespace arcgen::planner::engine
 
                 if (!localValid.empty ())
                 {
+                    auto t0 = std::chrono::steady_clock::now ();
                     auto localGraph = skeleton_->generate (localValid);
-                    if (auto path = tryGraph (localGraph, DebugInfo::StageUsed::Local))
+                    auto t1 = std::chrono::steady_clock::now ();
+                    if (dbg)
+                        dbg->componentTimes["Skeleton Generation (Local)"] = std::chrono::duration<double> (t1 - t0).count ();
+
+                    if (auto path = tryGraph (localGraph, "Local"))
                         return *path;
                 }
             }
@@ -338,13 +375,19 @@ namespace arcgen::planner::engine
             if (!globalGraph_)
             {
                 if (skeleton_ && workspace_ && !workspace_->empty ())
+                {
+                    auto t0 = std::chrono::steady_clock::now ();
                     globalGraph_.emplace (skeleton_->generate (*workspace_));
+                    auto t1 = std::chrono::steady_clock::now ();
+                    if (dbg)
+                        dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
+                }
             }
 
             if (!globalGraph_)
                 return std::unexpected (PlanningError::NoPathFound); // workspace empty or skeleton generation failed
 
-            if (auto path = tryGraph (*globalGraph_, DebugInfo::StageUsed::Global))
+            if (auto path = tryGraph (*globalGraph_, "Global"))
                 return *path;
 
             return std::unexpected (PlanningError::NoPathFound);

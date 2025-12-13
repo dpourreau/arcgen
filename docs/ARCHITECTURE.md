@@ -29,12 +29,16 @@ Given a start and goal pose, the engine attempts:
 2) Local skeleton: build an axis-aligned rectangle around the poses (+ margin) and run A* on its skeleton.
 3) Global skeleton: build once for the full workspace and reuse; run A* when local fails.
 
-The final path is formed by greedy stitching of steering segments between waypoints (start, A* vertices, goal).
+The final path is constructed by the `Connector`:
+- **Greedy Stitching**: Connects consecutive waypoints using the steering policy. It employs a "longest-valid-segment" heuristic (DFS) to skip intermediate waypoints if a direct connection is feasible and beneficial.
+- **Smoothing**: An iterative pass that resamples the path (preserving joints) and attempts to replace local segments with direct shortcuts. This reduces path length and unnecessary manoeuvres while maintaining feasibility.
 
 ## Constraints
 
 - Hard constraints: must accept a candidate (e.g., collision-free).
 - Soft constraints: assign a finite cost; the engine picks the lowest score among feasible candidates.
+
+Constraints are organized into a `ConstraintSet` containing separate vectors for hard and soft constraints to ensure clear distinction during evaluation.
 
 ## Performance Notes
 

@@ -12,8 +12,8 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_CXX_STANDARD": "23",
-                "AG_BUILD_TESTS": "ON",
-                "AG_ENABLE_PLOTS": "ON",
+                "AG_BUILD_TESTS": "OFF",
+                "AG_ENABLE_PLOTS": "OFF",
                 "AG_ENABLE_OPENMP": "OFF",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
@@ -25,8 +25,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "AG_BUILD_TESTS": "ON",
-                "AG_ENABLE_PLOTS": "ON",
-                "AG_ENABLE_OPENMP": "OFF"
+                "AG_ENABLE_PLOTS": "ON"
             }
         },
         {
@@ -34,8 +33,26 @@
             "displayName": "Release",
             "inherits": "base",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "release-tests",
+            "displayName": "Release + Tests",
+            "inherits": "base",
+            "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "AG_ENABLE_OPENMP": "OFF"
+                "AG_BUILD_TESTS": "ON"
+            }
+        },
+        {
+            "name": "release-plots",
+            "displayName": "Release + Tests + Plots",
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "AG_BUILD_TESTS": "ON",
+                "AG_ENABLE_PLOTS": "ON"
             }
         },
         {
@@ -63,6 +80,16 @@
             "jobs": 0
         },
         {
+            "name": "release-tests",
+            "configurePreset": "release-tests",
+            "jobs": 0
+        },
+        {
+            "name": "release-plots",
+            "configurePreset": "release-plots",
+            "jobs": 0
+        },
+        {
             "name": "asan",
             "configurePreset": "asan",
             "jobs": 0
@@ -79,6 +106,20 @@
         {
             "name": "release",
             "configurePreset": "release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "release-tests",
+            "configurePreset": "release-tests",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "release-plots",
+            "configurePreset": "release-plots",
             "output": {
                 "outputOnFailure": true
             }

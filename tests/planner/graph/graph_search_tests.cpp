@@ -100,7 +100,7 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 
     static void TearDownTestSuite () { stats_.printSummary (std::string (NameTag<Search>::str) + " – maze search"); }
 
-    void runOne (int id)
+    void runOne ([[maybe_unused]] int id)
     {
         State s{}, g{};
         sample (s);

@@ -28,6 +28,8 @@ namespace arcgen::planner::constraints
          * @return Path length in meters.
          */
         double cost (const Path<N> &cand, const EvalContext<N> & /*ctx*/) const noexcept override { return cand.length (); }
+
+        std::string name () const override { return "PathLength"; }
     };
 
 } // namespace arcgen::planner::constraints
