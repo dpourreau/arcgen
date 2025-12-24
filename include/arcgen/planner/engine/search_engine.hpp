@@ -18,9 +18,10 @@
 #include <arcgen/planner/constraints/collision.hpp>
 #include <arcgen/planner/constraints/constraints.hpp>
 #include <arcgen/planner/constraints/path_length.hpp>
-#include <arcgen/planner/evaluator.hpp>
+#include <arcgen/planner/engine/evaluator.hpp>
 #include <arcgen/planner/geometry/skeleton.hpp>
 #include <arcgen/planner/geometry/workspace.hpp>
+#include <arcgen/planner/graph/astar.hpp> // A* adaptor
 #include <arcgen/planner/graph/graph_search.hpp>
 #include <arcgen/steering/steering.hpp>
 
@@ -42,6 +43,7 @@ namespace arcgen::planner::engine
 {
     using namespace arcgen::core;
     using namespace arcgen::planner::geometry;
+    using namespace arcgen::planner::connector;
 
     /**
      * @brief Error codes for the planning process.
@@ -260,7 +262,6 @@ namespace arcgen::planner::engine
          * @return Discretized collision-free path or error code.
          */
         [[nodiscard]] std::expected<std::vector<State>, PlanningError> plan (State &start, State &goal) { return plan (start, goal, nullptr); }
-
         /**
          * @brief Plan with optional debug capture.
          * @param start Start state (unchanged).

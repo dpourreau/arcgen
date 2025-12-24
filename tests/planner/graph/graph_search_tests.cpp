@@ -75,7 +75,7 @@ template <class> struct NameTag
     static constexpr const char *str = "Generic";
 };
 
-using AStarSearch = arcgen::planner::search::AStar<arcgen::planner::geometry::Graph>;
+using AStarSearch = arcgen::planner::graph::AStar<arcgen::planner::geometry::Graph>;
 template <> struct NameTag<AStarSearch>
 {
     static constexpr const char *str = "AStar";

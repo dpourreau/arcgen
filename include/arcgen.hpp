@@ -25,10 +25,23 @@
 #include <arcgen/planner/constraints/collision.hpp>
 #include <arcgen/planner/constraints/footprint_collision.hpp>
 #include <arcgen/planner/constraints/path_length.hpp>
+
+namespace arcgen::planner
+{
+    namespace engine
+    {
+        enum class PlanningError;
+    }
+    namespace connector
+    {
+        template <class Steering, class DebugInfo> class GreedyConnector;
+    }
+} // namespace arcgen::planner
+
+#include <arcgen/planner/engine/search_engine.hpp>       // Three-stage planner
 #include <arcgen/planner/geometry/robot.hpp>             // Polygonal robot + sweep utilities
 #include <arcgen/planner/geometry/skeleton.hpp>          // Skeleton CRTP base
 #include <arcgen/planner/geometry/straight_skeleton.hpp> // CGAL-based straight skeleton
 #include <arcgen/planner/geometry/workspace.hpp>         // Valid-region workspace
 #include <arcgen/planner/graph/astar.hpp>                // A* adaptor
 #include <arcgen/planner/graph/graph_search.hpp>         // Graph-search CRTP base
-#include <arcgen/planner/search_engine.hpp>              // Three-stage planner

@@ -1,3 +1,8 @@
+/**
+ * @file straight_skeleton_tests.cpp
+ * @brief Unit tests and property checks for StraightSkeleton generation.
+ */
+
 #include <arcgen.hpp>
 
 #include <common/plot_dir.hpp>
@@ -9,6 +14,7 @@
 #include <boost/graph/graph_traits.hpp>
 #include <boost/range/iterator_range.hpp>
 
+#include <boost/geometry/io/wkt/wkt.hpp>
 #include <chrono>
 #include <filesystem>
 #include <gtest/gtest.h>
@@ -261,10 +267,11 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     std::mt19937 &rng () { return rng_; }
     const std::mt19937 &rng () const { return rng_; }
 
-  private:
+  protected:
     SkeletonT skel_;
     std::mt19937 rng_;
 
+  private:
     inline static RunningStats globalStats_{};
     inline static RunningStats localStats_{};
 };
@@ -293,4 +300,47 @@ TYPED_TEST (SkeletonFixture, LocalAroundRandomPairs)
     }
     this->runLocalCases (*test_helpers::mazeWorkspace (), 2001, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "maze");
     this->runLocalCases (*test_helpers::gearWorkspace (), 2002, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "gear");
+}
+
+/* ───────────── explicit edge cases ───────────── */
+TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
+{
+    // 1. Empty Workspace
+    {
+        Polygon p;
+        Workspace w (p);
+        auto g = this->skel_.generate (w);
+        EXPECT_EQ (boost::num_vertices (g), 0);
+        EXPECT_EQ (boost::num_edges (g), 0);
+    }
+
+    // 2. Triangle (Convex -> 1 internal center vertex, 0 internal edges)
+    {
+        Polygon poly;
+        bg::read_wkt ("POLYGON((0 0, 10 0, 5 8, 0 0))", poly);
+        bg::correct (poly);
+        Workspace w (poly);
+
+        auto g = this->skel_.generate (w);
+        EXPECT_EQ (boost::num_vertices (g), 1);
+        EXPECT_EQ (boost::num_edges (g), 0);
+    }
+
+    // 3. Disjoint (Split by obstacle -> Two 4x5 Rects -> 2 ridges -> 4 vertices, 2 edges)
+    {
+        Polygon outer;
+        bg::read_wkt ("POLYGON((0 0, 10 0, 10 5, 0 5, 0 0))", outer);
+        bg::correct (outer);
+
+        std::vector<Polygon> obstacles;
+        Polygon bar;
+        bg::read_wkt ("POLYGON((4 -1, 6 -1, 6 6, 4 6, 4 -1))", bar);
+        bg::correct (bar);
+        obstacles.push_back (bar);
+
+        Workspace w (outer, obstacles);
+        auto g = this->skel_.generate (w);
+        EXPECT_EQ (boost::num_vertices (g), 4);
+        EXPECT_EQ (boost::num_edges (g), 2);
+    }
 }

@@ -23,7 +23,7 @@
 #include <optional>
 #include <vector>
 
-namespace arcgen::planner::search
+namespace arcgen::planner::graph
 {
     using arcgen::core::State;
 
@@ -86,7 +86,7 @@ namespace arcgen::planner::search
          */
         [[nodiscard]] std::vector<State> searchImpl (const Graph &graph, const State &start, const State &goal) const
         {
-            const std::size_t numVertices = boost::num_vertices (graph);
+            const std::size_t numVertices = num_vertices (graph);
             if (numVertices == 0)
                 return {};
 
@@ -163,4 +163,4 @@ namespace arcgen::planner::search
         }
     };
 
-} // namespace arcgen::planner::search
+} // namespace arcgen::planner::graph

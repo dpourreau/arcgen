@@ -136,11 +136,24 @@ if(AG_BUILD_TESTS)
   endif()
 
   add_executable(ag_tests
-    tests/steering/steering_tests.cpp
-    tests/planner/geometry/skeleton_tests.cpp
+    tests/core/math_tests.cpp
+    tests/core/state_tests.cpp
+    tests/core/control_tests.cpp
+    tests/core/numeric_tests.cpp
+    tests/steering/path_tests.cpp
+    tests/steering/dubins_tests.cpp
+    tests/steering/reeds_shepp_tests.cpp
+    tests/planner/geometry/straight_skeleton_tests.cpp
     tests/planner/geometry/robot_tests.cpp
+    tests/planner/geometry/workspace_tests.cpp
+    tests/planner/graph/astar_tests.cpp
+    tests/planner/constraints/collision_tests.cpp
+    tests/planner/constraints/path_length_tests.cpp
+    tests/planner/constraints/footprint_collision_tests.cpp
+    tests/planner/evaluator_tests.cpp
+    tests/planner/connector/greedy_connector_tests.cpp
     tests/planner/graph/graph_search_tests.cpp
-    tests/planner/search_engine_tests.cpp
+    tests/planner/engine/search_engine_tests.cpp
   )
 
   target_link_libraries(ag_tests
