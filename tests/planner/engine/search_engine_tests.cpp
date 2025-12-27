@@ -40,9 +40,9 @@ namespace bg = boost::geometry;
 
 /* ───────── configuration ───────── */
 constexpr double R_MIN = 1.5;     ///< [m]
-constexpr double STEP = 0.02;     ///< [m] steering discretisation
+constexpr double STEP = 0.2;      ///< [m] steering discretisation
 constexpr double EPS_GOAL = 0.01; ///< [m] goal proximity
-constexpr int SAMPLES = 2;        ///< cases per workspace kind
+constexpr int SAMPLES = 50;       ///< cases per workspace kind
 
 // Robot footprint used for footprint-aware tests
 constexpr double ROBOT_LEN = 1.3; ///< [m] rectangle length
