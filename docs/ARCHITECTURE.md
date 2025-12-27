@@ -18,8 +18,8 @@ This document provides a deeper look at how ArcGen is structured and how the maj
 - Planner (`include/arcgen/planner`)
   - Geometry: `geometry/workspace.hpp` (polygonal valid region with R-tree), `geometry/straight_skeleton.hpp` (CGAL → Boost graph), `geometry/skeleton.hpp` (CRTP façade)
   - Constraints: `constraints.hpp` (interfaces), `collision.hpp` (hard), `footprint_collision.hpp` (hard), `path_length.hpp` (soft)
-  - Search: `search/graph_search.hpp` (CRTP), `search/astar.hpp` (Boost.Graph A* adaptor)
-  - Engine: `search_engine.hpp` and `connector/greedy_connector.hpp` — three-stage planner orchestrating steering, skeleton generation, and graph search
+  - Search: `graph/graph_search.hpp` (CRTP), `graph/astar.hpp` (Boost.Graph A* adaptor)
+  - Engine: `engine/search_engine.hpp` and `connector/greedy_connector.hpp` — three-stage planner orchestrating steering, skeleton generation, and graph search
 
 ## Engine Pipeline
 

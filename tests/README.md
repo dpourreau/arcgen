@@ -1,6 +1,6 @@
 # Tests and Plots
 
-ArcGen ships with property/timing tests for steering, geometry (skeleton), A* graph search, and the end-to-end engine.
+ArcGen ships with a comprehensive test suite covering core primitives, steering functions, geometry/skeletons, graph search, and the high-level three-stage engine.
 
 ## Running
 

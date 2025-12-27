@@ -70,6 +70,10 @@ target_include_directories(arcgen
   INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
+)
+
+target_include_directories(arcgen SYSTEM
+  INTERFACE
     ${Boost_INCLUDE_DIRS}
 )
 
@@ -130,17 +134,38 @@ install(FILES
 if(AG_BUILD_TESTS)
   enable_testing()
 
-  find_package(GTest QUIET CONFIG)
+  include(FetchContent)
+  find_package(GTest QUIET)
   if(NOT GTest_FOUND)
-    message(FATAL_ERROR "GoogleTest not found")
+    message(STATUS "GoogleTest not found locally, fetching from source...")
+    FetchContent_Declare(
+      googletest
+      URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    )
+    # For Windows: Prevent overriding the parent project's compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
   endif()
 
   add_executable(ag_tests
-    tests/steering/steering_tests.cpp
-    tests/planner/geometry/skeleton_tests.cpp
+    tests/core/math_tests.cpp
+    tests/core/state_tests.cpp
+    tests/core/control_tests.cpp
+    tests/core/numeric_tests.cpp
+    tests/steering/path_tests.cpp
+    tests/steering/dubins_tests.cpp
+    tests/steering/reeds_shepp_tests.cpp
+    tests/planner/geometry/straight_skeleton_tests.cpp
     tests/planner/geometry/robot_tests.cpp
+    tests/planner/geometry/workspace_tests.cpp
+    tests/planner/graph/astar_tests.cpp
+    tests/planner/constraints/collision_tests.cpp
+    tests/planner/constraints/path_length_tests.cpp
+    tests/planner/constraints/footprint_collision_tests.cpp
+    tests/planner/evaluator_tests.cpp
+    tests/planner/connector/greedy_connector_tests.cpp
     tests/planner/graph/graph_search_tests.cpp
-    tests/planner/search_engine_tests.cpp
+    tests/planner/engine/search_engine_tests.cpp
   )
 
   target_link_libraries(ag_tests
@@ -159,6 +184,11 @@ if(AG_BUILD_TESTS)
       ${PROJECT_SOURCE_DIR}/tests
   )
 
+  target_include_directories(ag_tests SYSTEM
+    PRIVATE
+      ${Boost_INCLUDE_DIRS}
+  )
+
   # Optional plotting in tests only
   if(AG_ENABLE_PLOTS)
     target_compile_definitions(ag_tests PRIVATE AG_ENABLE_PLOTS)
@@ -173,6 +203,18 @@ if(AG_BUILD_TESTS)
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow
         -Wnon-virtual-dtor -Wold-style-cast -Woverloaded-virtual
         -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast)
+
+    # Suppress -Wmaybe-uninitialized for specific tests using Boost.Geometry
+    # which triggers false positives in GCC.
+    set(BOOST_GEOMETRY_TESTS
+      tests/planner/geometry/robot_tests.cpp
+      tests/planner/geometry/workspace_tests.cpp
+      tests/planner/graph/graph_search_tests.cpp
+      tests/planner/engine/search_engine_tests.cpp
+    )
+    set_source_files_properties(${BOOST_GEOMETRY_TESTS} PROPERTIES 
+        COMPILE_OPTIONS "-Wno-maybe-uninitialized")
+
     else() # Clang / AppleClang and others
       target_compile_options(ag_tests PRIVATE
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow

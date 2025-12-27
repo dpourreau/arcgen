@@ -1,3 +1,10 @@
+/**
+ * @file common.hpp
+ * @brief Shared test fixture and helpers for Steering functions (Dubins/Reeds-Shepp).
+ */
+
+#pragma once
+
 #include <common/plot_dir.hpp>
 #include <common/test_stats.hpp>
 #include <common/visualizer.hpp>
@@ -20,7 +27,6 @@ using test_helpers::RunningStats;
 using test_helpers::ScopedTimer;
 using test_helpers::Visualizer;
 
-/* ───────── configuration ───────── */
 constexpr double R_MIN = 3.0;     ///< [m]
 constexpr double STEP = 0.30;     ///< [m]
 constexpr double EPS_GOAL = 0.05; ///< [m]
@@ -71,23 +77,17 @@ template <class Generator> class SteeringFixture : public ::testing::Test
 
     static void TearDownTestSuite () { timing_.printSummary (std::string (GenName<Generator>::value) + " – shortestPath()"); }
 
-    void runOneProperty (int id)
+    void checkPath (const State &start, const State &goal, const std::string &caseName)
     {
-        // random start / goal
-        State a{}, b{};
-        a.x = pos_ (rng_);
-        a.y = pos_ (rng_);
-        a.heading = ang_ (rng_);
-        b.x = pos_ (rng_);
-        b.y = pos_ (rng_);
-        b.heading = ang_ (rng_);
-
+        // time + compute path
         // time + compute path
         typename Generator::PathType result{};
         {
+            State s_mut = start;
+            State g_mut = goal;
             ScopedTimer t (timing_);
             (void)t;
-            result = gen_.shortestPath (a, b);
+            result = gen_.shortestPath (s_mut, g_mut);
         }
 
         bool ok = true;
@@ -101,7 +101,7 @@ template <class Generator> class SteeringFixture : public ::testing::Test
         else
         {
             // final pose near goal
-            const double miss = euclidean (result.states->back (), b);
+            const double miss = euclidean (result.states->back (), goal);
             if (miss > EPS_GOAL)
             {
                 ok = false;
@@ -131,10 +131,9 @@ template <class Generator> class SteeringFixture : public ::testing::Test
         }
 
 #ifdef AG_ENABLE_PLOTS
-        // Optional plot
         const char *tag = ok ? "ok" : "fail";
         std::ostringstream fn;
-        fn << tag << '_' << id << ".svg";
+        fn << tag << '_' << caseName << ".svg";
         auto outPath = test_helpers::plotFile ({"steering", GenName<Generator>::value}, fn.str ());
         Visualizer svg (outPath.string (), 800);
         if (result.states)
@@ -147,7 +146,19 @@ template <class Generator> class SteeringFixture : public ::testing::Test
         svg.drawAxes ();
         svg.finish ();
 #endif
-        ASSERT_TRUE (ok) << "Case " << id << " failed: " << fail.str ();
+        ASSERT_TRUE (ok) << "Case " << caseName << " failed: " << fail.str ();
+    }
+
+    void runOneProperty (int id)
+    {
+        State a{}, b{};
+        a.x = pos_ (rng_);
+        a.y = pos_ (rng_);
+        a.heading = ang_ (rng_);
+        b.x = pos_ (rng_);
+        b.y = pos_ (rng_);
+        b.heading = ang_ (rng_);
+        checkPath (a, b, std::to_string (id));
     }
 
   private:
@@ -159,11 +170,32 @@ template <class Generator> class SteeringFixture : public ::testing::Test
     inline static RunningStats timing_{};
 };
 
-using TestedGenerators = ::testing::Types<Dubins, ReedsShepp>;
-TYPED_TEST_SUITE (SteeringFixture, TestedGenerators);
+TYPED_TEST_SUITE_P (SteeringFixture);
 
-TYPED_TEST (SteeringFixture, PropertiesOnRandomPairs)
+TYPED_TEST_P (SteeringFixture, PropertiesOnRandomPairs)
 {
     for (int k = 0; k < SAMPLES; ++k)
         this->runOneProperty (k);
 }
+
+TYPED_TEST_P (SteeringFixture, ZeroLength)
+{
+    State s{0, 0, 0, 0, DrivingDirection::Neutral};
+    this->checkPath (s, s, "zero_len");
+}
+
+TYPED_TEST_P (SteeringFixture, TinyDisplacement)
+{
+    State start{0, 0, 0, 0, DrivingDirection::Neutral};
+    State goal{1e-3, 1e-3, 1e-3, 0, DrivingDirection::Neutral};
+    this->checkPath (start, goal, "tiny_disp");
+}
+
+TYPED_TEST_P (SteeringFixture, StraightLine)
+{
+    State start{0, 0, 0, 0, DrivingDirection::Neutral};
+    State goal{10.0, 0, 0, 0, DrivingDirection::Neutral};
+    this->checkPath (start, goal, "straight");
+}
+
+REGISTER_TYPED_TEST_SUITE_P (SteeringFixture, PropertiesOnRandomPairs, ZeroLength, TinyDisplacement, StraightLine);

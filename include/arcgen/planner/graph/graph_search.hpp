@@ -19,7 +19,7 @@
 #include <arcgen/core/state.hpp>
 #include <vector>
 
-namespace arcgen::planner::search
+namespace arcgen::planner::graph
 {
     using arcgen::core::State;
 
@@ -61,4 +61,4 @@ namespace arcgen::planner::search
         ~GraphSearchBase () = default;
     };
 
-} // namespace arcgen::planner::search
+} // namespace arcgen::planner::graph

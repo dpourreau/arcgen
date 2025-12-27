@@ -49,7 +49,7 @@ namespace arcgen::planner::geometry
         {
             CGALPolygon poly;
             const std::size_t n = ring.size () - 1; // skip duplicate last point
-            poly.reserve (n);
+
             for (std::size_t i = 0; i < n; ++i)
                 poly.push_back (CGALPoint (ring[i].x (), ring[i].y ()));
             return poly;

@@ -110,8 +110,8 @@ ctest --preset debug --output-on-failure
 using namespace arcgen::core;
 using namespace arcgen::planner::geometry;
 using arcgen::planner::engine::SearchEngine;
-using arcgen::planner::search::AStar;
-namespace connector = arcgen::planner::engine::connector;
+using arcgen::planner::graph::AStar;
+namespace connector = arcgen::planner::connector;
 using arcgen::steering::Dubins;
 namespace C  = arcgen::planner::constraints;
 namespace bg = boost::geometry;
@@ -230,44 +230,65 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │       │   ├── numeric.hpp            # constants & tolerances
 │       │   └── state.hpp              # pose/curvature/direction
 │       ├── planner/
+│       │   ├── connector/             # Stitching strategies
+│       │   │   ├── connector.hpp      # Connector concept
+│       │   │   └── greedy_connector.hpp
 │       │   ├── constraints/
 │       │   │   ├── collision.hpp
 │       │   │   ├── constraints.hpp    # Hard/Soft interfaces
 │       │   │   ├── footprint_collision.hpp
 │       │   │   └── path_length.hpp
-│       │   ├── connector/             # Stitching strategies
-│       │   │   ├── connector.hpp      # Connector concept
-│       │   │   └── greedy_connector.hpp
+│       │   ├── engine/
+│       │   │   ├── evaluator.hpp          # Constraint-aware candidate selector
+│       │   │   └── search_engine.hpp      # 3-stage planner
 │       │   ├── geometry/
 │       │   │   ├── robot.hpp          # Polygonal robot model + transforms
 │       │   │   ├── skeleton.hpp       # CRTP base
 │       │   │   ├── straight_skeleton.hpp  # CGAL → Boost.Graph
 │       │   │   └── workspace.hpp      # polygon set + queries
-│       │   ├── search/
-│       │   │   ├── astar.hpp          # A* adaptor
-│       │   │   └── graph_search.hpp   # CRTP base
-│       │   ├── evaluator.hpp          # Constraint-aware candidate selector
-│       │   └── search_engine.hpp      # 3-stage planner
+│       │   └── graph/
+│       │       ├── astar.hpp          # A* adaptor
+│       │       └── graph_search.hpp   # CRTP base
 │       └── steering/
 │           ├── dubins.hpp
 │           ├── reeds_shepp.hpp
 │           ├── path.hpp               # Path container
 │           └── steering.hpp           # CRTP base
 ├── tests/
+│   ├── README.md
 │   ├── common/
 │   │   ├── plot_dir.hpp
 │   │   ├── pose_sampling.hpp
 │   │   ├── test_stats.hpp
 │   │   ├── visualizer.hpp
 │   │   └── workspace_generators.hpp
-│   ├── geometry/
-│   │   ├── robot_tests.cpp
-│   │   └── skeleton_tests.cpp
-│   ├── planning/
-│   │   ├── engine/search_engine_tests.cpp
-│   │   └── search/graph_search_tests.cpp
+│   ├── core/
+│   │   ├── control_tests.cpp
+│   │   ├── math_tests.cpp
+│   │   ├── numeric_tests.cpp
+│   │   └── state_tests.cpp
+│   ├── planner/
+│   │   ├── connector/
+│   │   │   └── greedy_connector_tests.cpp
+│   │   ├── constraints/
+│   │   │   ├── collision_tests.cpp
+│   │   │   ├── footprint_collision_tests.cpp
+│   │   │   └── path_length_tests.cpp
+│   │   ├── engine/
+│   │   │   └── search_engine_tests.cpp
+│   │   ├── geometry/
+│   │   │   ├── robot_tests.cpp
+│   │   │   └── straight_skeleton_tests.cpp
+│   │   │   └── workspace_tests.cpp
+│   │   ├── graph/
+│   │   │   ├── astar_tests.cpp
+│   │   │   └── graph_search_tests.cpp
+│   │   └── evaluator_tests.cpp
 │   └── steering/
-│       └── steering_tests.cpp
+│       ├── dubins_tests.cpp
+│       ├── reeds_shepp_tests.cpp
+│       ├── path_tests.cpp
+│       └── steering_fixtures.hpp
 └── README.md
 ```
 
@@ -275,17 +296,18 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 
 ArcGen ships with four small but meaningful test suites (enabled when `AG_BUILD_TESTS=ON`):
 
-- **Steering** (`tests/steering/steering_tests.cpp`)  
+- **Core** (`tests/core/`)
+  Tests for math helpers, numeric tolerances, and state/control primitives.
+
+- **Steering** (`tests/steering/`)
   Property tests for Dubins & Reeds–Shepp: goal proximity, length consistency, monotone steps; prints a timing summary for `shortestPath()`.
 
-- **Geometry / Skeleton** (`tests/geometry/skeleton_tests.cpp`)  
-  Validates global & local straight-skeleton graphs: vertices lie inside the valid region and edge weights match Euclidean lengths.
-
-- **Graph search** (`tests/planning/search/graph_search_tests.cpp`)  
-  A* on a maze skeleton: verifies that returned waypoints correspond to graph vertices; collects timing stats.
-
-- **End-to-end engine** (`tests/planning/engine/search_engine_tests.cpp`)  
-  Full pipeline on random/maze/gear workspaces: feasibility, goal tolerance, global-skeleton caching; prints planning-time stats.
+- **Planner** (`tests/planner/`)
+  - **Geometry / Skeleton**: Validates global & local straight-skeleton graphs: vertices lie inside the valid region and edge weights match Euclidean lengths.
+  - **Graph search**: A* on a maze skeleton: verifies that returned waypoints correspond to graph vertices; collects timing stats.
+  - **Constraints**: Collision (point and footprint) and path-length constraint validation.
+  - **Connector**: Greedy stitching and local smoothing correctness.
+  - **End-to-end engine**: Full pipeline on random/maze/gear workspaces: feasibility, goal tolerance, global-skeleton caching; prints planning-time stats.
 
 **Tips**
 

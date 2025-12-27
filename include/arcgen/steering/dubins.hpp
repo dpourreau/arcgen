@@ -81,7 +81,10 @@ namespace arcgen::steering
 
             /* easy zero-distance special-case */
             if (d < arcgen::core::dubins_tol && std::fabs (a - b) < arcgen::core::dubins_tol)
+            {
+                paths.push_back (makePath (PATH_TYPES[0], 0, 0, 0));
                 return paths;
+            }
 
             const double ca = std::cos (a), sa = std::sin (a);
             const double cb = std::cos (b), sb = std::sin (b);
@@ -110,7 +113,7 @@ namespace arcgen::steering
             if (lrl)
                 paths.push_back (*lrl);
 
-            std::sort (paths.begin (), paths.end (), [this] (const auto &a, const auto &b) { return this->shorter (a, b); });
+            std::sort (paths.begin (), paths.end (), [this] (const auto &pathA, const auto &pathB) { return this->shorter (pathA, pathB); });
             return paths;
         }
 

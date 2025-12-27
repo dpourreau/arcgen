@@ -68,7 +68,8 @@ namespace arcgen::planner::geometry
             // 3) Subtract obstacles from the outer polygon to build the valid region.
             if (obstaclesUnion.empty ())
             {
-                region_.push_back (std::move (outer)); // no obstacles
+                if (!bg::is_empty (outer))
+                    region_.push_back (std::move (outer)); // no obstacles
             }
             else
             {

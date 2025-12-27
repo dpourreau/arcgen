@@ -1,20 +1,22 @@
+#define ARCGEN_ENGINE_CONNECTOR_GREEDY_CONNECTOR_HPP
 #pragma once
 /**
  * @file connector.hpp
  * @brief Concept for stitching coarse graph paths into feasible robot paths.
  */
 
-#include <arcgen/core/state.hpp>
-#include <arcgen/planner/evaluator.hpp>
+#include <arcgen.hpp>
 
 #include <concepts>
 #include <utility>
 #include <vector>
 
-namespace arcgen::planner::engine::connector
+namespace arcgen::planner::connector
 {
+    using arcgen::planner::engine::Evaluator;
+
     /**
-     * @brief Compile-time contract for connector implementations.
+     * @brief Greedy connector that assigns headings to coarse waypoints and stitches them with farthest-reachable jumps.lementations.
      */
     template <class Connector, class Steering, class DebugInfo>
     concept ConnectorLike = requires (const Connector &c, const Evaluator<Steering> &evaluator, const arcgen::core::State &start, const arcgen::core::State &goal,
@@ -22,4 +24,4 @@ namespace arcgen::planner::engine::connector
         { c.connect (evaluator, start, goal, std::move (coarse), dbg) } -> std::same_as<std::vector<arcgen::core::State>>;
     };
 
-} // namespace arcgen::planner::engine::connector
+} // namespace arcgen::planner::connector
