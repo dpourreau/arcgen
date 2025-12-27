@@ -1,10 +1,8 @@
-#include <arcgen/core/state.hpp>
 #include <arcgen/planner/graph/astar.hpp>
 
 #include <boost/graph/adjacency_list.hpp>
 #include <gtest/gtest.h>
 
-using arcgen::core::State;
 using arcgen::planner::graph::AStar;
 
 namespace
@@ -68,7 +66,7 @@ TEST_F (AStarFixture, SimplePath)
 TEST_F (AStarFixture, BranchingPath)
 {
     //      B(5, 5)
-    //     /       \
+    //     /       \ 
     // A(0,0)       D(10,0)
     //     \       /
     //      C(5,-1)

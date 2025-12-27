@@ -184,6 +184,11 @@ if(AG_BUILD_TESTS)
       ${PROJECT_SOURCE_DIR}/tests
   )
 
+  target_include_directories(ag_tests SYSTEM
+    PRIVATE
+      ${Boost_INCLUDE_DIRS}
+  )
+
   # Optional plotting in tests only
   if(AG_ENABLE_PLOTS)
     target_compile_definitions(ag_tests PRIVATE AG_ENABLE_PLOTS)
@@ -198,6 +203,17 @@ if(AG_BUILD_TESTS)
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow
         -Wnon-virtual-dtor -Wold-style-cast -Woverloaded-virtual
         -Wduplicated-cond -Wduplicated-branches -Wlogical-op -Wuseless-cast)
+
+    # Suppress -Wmaybe-uninitialized for specific tests using Boost.Geometry
+    # which triggers false positives in GCC.
+    set(BOOST_GEOMETRY_TESTS
+      tests/planner/geometry/robot_tests.cpp
+      tests/planner/geometry/workspace_tests.cpp
+      tests/planner/graph/graph_search_tests.cpp
+    )
+    set_source_files_properties(${BOOST_GEOMETRY_TESTS} PROPERTIES 
+        COMPILE_OPTIONS "-Wno-maybe-uninitialized")
+
     else() # Clang / AppleClang and others
       target_compile_options(ag_tests PRIVATE
         -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow
