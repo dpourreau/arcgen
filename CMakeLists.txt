@@ -130,9 +130,17 @@ install(FILES
 if(AG_BUILD_TESTS)
   enable_testing()
 
-  find_package(GTest QUIET CONFIG)
+  include(FetchContent)
+  find_package(GTest QUIET)
   if(NOT GTest_FOUND)
-    message(FATAL_ERROR "GoogleTest not found")
+    message(STATUS "GoogleTest not found locally, fetching from source...")
+    FetchContent_Declare(
+      googletest
+      URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+    )
+    # For Windows: Prevent overriding the parent project's compiler/linker settings
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
   endif()
 
   add_executable(ag_tests
