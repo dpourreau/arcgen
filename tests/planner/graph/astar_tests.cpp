@@ -66,7 +66,7 @@ TEST_F (AStarFixture, SimplePath)
 TEST_F (AStarFixture, BranchingPath)
 {
     //      B(5, 5)
-    //     /       \ 
+    //     /       \ .
     // A(0,0)       D(10,0)
     //     \       /
     //      C(5,-1)

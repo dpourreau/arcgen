@@ -210,6 +210,7 @@ if(AG_BUILD_TESTS)
       tests/planner/geometry/robot_tests.cpp
       tests/planner/geometry/workspace_tests.cpp
       tests/planner/graph/graph_search_tests.cpp
+      tests/planner/engine/search_engine_tests.cpp
     )
     set_source_files_properties(${BOOST_GEOMETRY_TESTS} PROPERTIES 
         COMPILE_OPTIONS "-Wno-maybe-uninitialized")
