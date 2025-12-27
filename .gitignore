@@ -15,6 +15,7 @@ Testing/
 install/
 plots/
 out/
+stats/
 
 # Tooling configs (usually user-specific)
 CMakeUserPresets.json
@@ -58,4 +59,3 @@ Thumbs.db
 
 # Test artifacts
 tests/**/output*
-
