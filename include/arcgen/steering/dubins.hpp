@@ -113,7 +113,7 @@ namespace arcgen::steering
             if (lrl)
                 paths.push_back (*lrl);
 
-            std::sort (paths.begin (), paths.end (), [this] (const auto &a, const auto &b) { return this->shorter (a, b); });
+            std::sort (paths.begin (), paths.end (), [this] (const auto &pathA, const auto &pathB) { return this->shorter (pathA, pathB); });
             return paths;
         }
 
