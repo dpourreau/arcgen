@@ -157,7 +157,7 @@ namespace
     {
         if (v.empty ())
             return 0.0;
-        return std::reduce (v.begin (), v.end ()) / v.size ();
+        return std::reduce (v.begin (), v.end ()) / static_cast<double> (v.size ());
     }
     double getMin (const std::vector<double> &v)
     {
@@ -177,13 +177,13 @@ namespace
             return 0.0;
         double mean = getMean (v);
         double sqSum = std::transform_reduce (v.begin (), v.end (), 0.0, std::plus<> (), [mean] (double x) { return (x - mean) * (x - mean); });
-        return std::sqrt (sqSum / (v.size () - 1));
+        return std::sqrt (sqSum / static_cast<double> (v.size () - 1));
     }
     double getMeanInt (const std::vector<int> &v)
     {
         if (v.empty ())
             return 0.0;
-        return (double)std::reduce (v.begin (), v.end ()) / v.size ();
+        return static_cast<double> (std::reduce (v.begin (), v.end ())) / static_cast<double> (v.size ());
     }
 
 } // namespace
