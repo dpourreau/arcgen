@@ -18,7 +18,16 @@ ctest --preset debug --output-on-failure
 
 ## Plots
 
-When `AG_ENABLE_PLOTS=ON`, SVGs are written under `build/<preset>/plots/...`. In addition, `_stats.txt` files are generated for each step, providing detailed cost breakdowns and timing information. The structure mirrors the test suite (e.g., `plots/steering/dubins/*.svg`).
+When `AG_ENABLE_PLOTS=ON`, SVGs are written under `build/<preset>/plots/...`. The structure mirrors the test suite (e.g., `plots/steering/dubins/*.svg`).
+
+## Statistics Reports
+
+When `AG_ENABLE_TEST_REPORT=ON` (enabled by default in `release-tests`, `release-plots`, etc.), aggregate statistics are generated in `build/<preset>/stats/`:
+
+-   `planner_stats_report.txt`: Human-readable summary of planner performance.
+-   `planner_stats.csv`: Raw data for analysis.
+
+These reports include success rates, timing breakdowns, and source distribution (Direct/Local/Global).
 
 ## Notes
 

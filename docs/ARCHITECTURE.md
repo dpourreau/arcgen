@@ -45,4 +45,5 @@ Constraints are organized into a `ConstraintSet` containing separate vectors for
 - Build in Release for representative timings.
 - Tune `ds` (state discretisation) to balance accuracy vs speed.
 - Enable OpenMP (`-DAG_ENABLE_OPENMP=ON`) to parallelise candidate evaluation.
+- Enable `AG_ENABLE_TEST_REPORT=ON` to generate detailed performance statistics (`planner_stats_report.txt`, `planner_stats.csv`) for analysis.
 - Skeleton graphs avoid duplicate edges; A* uses Euclidean heuristic.

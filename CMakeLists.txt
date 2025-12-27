@@ -14,11 +14,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ──────────────────────────────────────────────────────────────
 #  Build options
 # ──────────────────────────────────────────────────────────────
-option(AG_BUILD_TESTS      "Build unit / property / timing tests"           OFF)
-option(AG_ENABLE_PLOTS     "Generate SVG plots in tests"                    OFF)
-option(AG_STRICT_WARNINGS  "Enable a strict warnings profile"               ON)
-option(AG_ENABLE_IPO       "Enable inter-procedural optimization (LTO)"     OFF)
-option(AG_ENABLE_OPENMP    "Enable OpenMP parallelism in arcgen"            OFF)
+option(AG_BUILD_TESTS           "Build unit / property / timing tests"                          OFF)
+option(AG_ENABLE_PLOTS          "Generate SVG plots in tests"                                   OFF)
+option(AG_STRICT_WARNINGS       "Enable a strict warnings profile"                              ON)
+option(AG_ENABLE_IPO            "Enable inter-procedural optimization (LTO)"                    OFF)
+option(AG_ENABLE_OPENMP         "Enable OpenMP parallelism in arcgen"                           OFF)
+option(AG_ENABLE_TEST_REPORT    "Generate a comprehensive planner statistics report from tests" ${AG_ENABLE_PLOTS})
+if (AG_ENABLE_TEST_REPORT)
+    add_compile_definitions (AG_ENABLE_TEST_REPORT)
+endif ()
 
 # ──────────────────────────────────────────────────────────────
 #  Compiler settings

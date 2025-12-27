@@ -38,4 +38,5 @@ ctest --preset debug --output-on-failure
 ```
 
 Enable plot generation with `-DAG_ENABLE_PLOTS=ON` (already ON in the `debug` preset). SVGs are written under `build/<preset>/plots/...`.
+Enable statistics reports with `-DAG_ENABLE_TEST_REPORT=ON` to get `planner_stats_report.txt` and `.csv` in `build/<preset>/stats/`. These reports are useful for diagnosing performance outliers or high-failure-rate configurations.
 

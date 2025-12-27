@@ -110,6 +110,13 @@ namespace arcgen::planner::engine
          */
         struct DebugInfo
         {
+            enum class Source
+            {
+                Direct,
+                Local,
+                Global
+            };
+
             struct TrajectoryStats
             {
                 double totalCost{0.0};
@@ -134,6 +141,9 @@ namespace arcgen::planner::engine
 
             // Skeleton graph actually used (copied) when associated with a stage.
             std::optional<GlobalGraph> graph;
+
+            std::optional<Source> source;
+            int smoothingIterations{0};
         };
 
         using ConnectorType = Connector<Steering, DebugInfo>;
@@ -149,9 +159,9 @@ namespace arcgen::planner::engine
          * @param connector  Connector responsible for stitching coarse paths (must not be null).
          */
         SearchEngine (std::shared_ptr<Steering> steering, std::shared_ptr<GraphSearch> graphSearch, std::shared_ptr<Skeleton> skeleton, std::shared_ptr<Workspace> workspace,
-                      ConnectorPtr connector)
+                      ConnectorPtr connector, bool enableLocalSearch = false, double localBBMargin = 10.0)
             : steering_ (std::move (steering)), graphSearch_ (std::move (graphSearch)), skeleton_ (std::move (skeleton)), workspace_ (std::move (workspace)),
-              connector_ (std::move (connector))
+              connector_ (std::move (connector)), enableLocalSearch_ (enableLocalSearch), localBBMargin_ (localBBMargin)
         {
         }
 
@@ -276,6 +286,8 @@ namespace arcgen::planner::engine
                 dbg->history.clear ();
                 dbg->componentTimes.clear ();
                 dbg->graph.reset ();
+                dbg->source.reset ();
+                dbg->smoothingIterations = 0;
             }
 
             if (!steering_ || !graphSearch_ || !skeleton_ || !workspace_ || !connector_)
@@ -309,6 +321,7 @@ namespace arcgen::planner::engine
                             }
                         }
                         dbg->history.push_back (std::move (step));
+                        dbg->source = DebugInfo::Source::Direct;
                     }
                     return best->first;
                 }
@@ -337,12 +350,21 @@ namespace arcgen::planner::engine
                 auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
                 if (path.empty ())
                     return std::nullopt;
+
+                if (dbg)
+                {
+                    if (stageName == "Local")
+                        dbg->source = DebugInfo::Source::Local;
+                    else if (stageName == "Global")
+                        dbg->source = DebugInfo::Source::Global;
+                }
                 return path;
             };
 
             // ── Stage 2: local skeleton (axis-aligned rectangle around start/goal + margin)
+            if (enableLocalSearch_)
             {
-                const double margin = 2.0 * steering_->getRadiusMin ();
+                const double margin = localBBMargin_;
                 const double xMin = std::min (start.x, goal.x) - margin;
                 const double yMin = std::min (start.y, goal.y) - margin;
                 const double xMax = std::max (start.x, goal.x) + margin;
@@ -402,6 +424,8 @@ namespace arcgen::planner::engine
         std::optional<GlobalGraph> globalGraph_;   ///< Cached global skeleton (built lazily).
         ConnectorPtr connector_;                   ///< Stitching strategy.
         ConstraintSet constraints_;                ///< Active constraints (hard + soft).
+        bool enableLocalSearch_;                   ///< Enable Stage 2 local search.
+        double localBBMargin_;                     ///< Margin for local bounding box search.
     };
 
 } // namespace arcgen::planner::engine

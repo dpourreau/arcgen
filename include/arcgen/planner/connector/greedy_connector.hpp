@@ -33,30 +33,45 @@ namespace arcgen::planner::connector
         double resampleInterval_;
         unsigned int maxIterations_;
         unsigned int lookaheadMatches_;
+        double minResampleInterval_;
+        double costImprovementTol_;
 
       public:
         /**
          * @brief Constructs a GreedyConnector with configurable parameters.
          *
-         * @param resampleInterval The interval (in meters) at which the path is resampled for smoothing.
-         *                         Must be greater than 1e-3. Default is 3.0. If less than the steering
-         *                         discretization parameter, it is automatically ignored and all states on
-         *                         the path are used for smoothing.
-         * @param maxIterations    The maximum number of smoothing iterations to perform.
-         *                         Default is 3.
-         * @param lookaheadMatches The number of subsequent segments to search for greedy shortcuts.
-         *                         Must be at least 1. Default is 3.
-         * @throws std::invalid_argument if resampleInterval <= 1e-3 or lookaheadMatches < 1.
+         * @param resampleInterval     The interval (in meters) at which the path is resampled for smoothing.
+         *                             Must be greater than minResampleInterval. Default is 3.0.
+         * @param maxIterations        The maximum number of smoothing iterations to perform.
+         *                             Default is 3.
+         * @param lookaheadMatches     The number of subsequent segments to search for greedy shortcuts.
+         *                             Must be at least 1. Default is 3.
+         * @param minResampleInterval  Minimum allowed resample interval (default: core::GREEDY_MIN_RESAMPLE_INTERVAL).
+         * @param costImprovementTol   Minimum cost improvement to accept a shortcut (default: core::GREEDY_COST_IMPROVEMENT_TOL).
+         * @throws std::invalid_argument if resampleInterval <= minResampleInterval or lookaheadMatches < 1.
          */
-        explicit GreedyConnector (double resampleInterval = 3, unsigned int maxIterations = 3, unsigned int lookaheadMatches = 3)
-            : resampleInterval_ (resampleInterval), maxIterations_ (maxIterations), lookaheadMatches_ (lookaheadMatches)
+        explicit GreedyConnector (double resampleInterval = 3, unsigned int maxIterations = 3, unsigned int lookaheadMatches = 3,
+                                  double minResampleInterval = arcgen::core::GREEDY_MIN_RESAMPLE_INTERVAL, double costImprovementTol = arcgen::core::GREEDY_COST_IMPROVEMENT_TOL)
+            : resampleInterval_ (resampleInterval), maxIterations_ (maxIterations), lookaheadMatches_ (lookaheadMatches), minResampleInterval_ (minResampleInterval),
+              costImprovementTol_ (costImprovementTol)
         {
-            if (resampleInterval_ < arcgen::core::GREEDY_MIN_RESAMPLE_INTERVAL)
-                throw std::invalid_argument ("GreedyConnector: resampleInterval must be > 1e-3");
+            if (resampleInterval_ < minResampleInterval_)
+                throw std::invalid_argument ("GreedyConnector: resampleInterval must be > minResampleInterval");
             // maxIterations is unsigned, so >= 0 is always true.
             if (lookaheadMatches_ < 1)
                 throw std::invalid_argument ("GreedyConnector: lookaheadMatches must be >= 1");
         }
+
+        /// @brief Get the resample interval.
+        [[nodiscard]] double getResampleInterval () const noexcept { return resampleInterval_; }
+        /// @brief Get the maximum number of smoothing iterations.
+        [[nodiscard]] unsigned int getMaxIterations () const noexcept { return maxIterations_; }
+        /// @brief Get the lookahead depth for greedy shortcuts.
+        [[nodiscard]] unsigned int getLookaheadMatches () const noexcept { return lookaheadMatches_; }
+        /// @brief Get the minimum allowed resample interval.
+        [[nodiscard]] double getMinResampleInterval () const noexcept { return minResampleInterval_; }
+        /// @brief Get the cost improvement tolerance.
+        [[nodiscard]] double getCostImprovementTol () const noexcept { return costImprovementTol_; }
 
         /**
          * @brief Connects start and goal states via coarse waypoints, optimizing with a greedy strategy.
@@ -124,6 +139,7 @@ namespace arcgen::planner::connector
 
             // Time smoothing
             auto tSmoothingStart = std::chrono::steady_clock::now ();
+            int successfulIterations = 0;
 
             for (unsigned int iter = 0; iter < maxIterations_; ++iter)
             {
@@ -152,7 +168,7 @@ namespace arcgen::planner::connector
                     continue;
                 }
 
-                if (newResult.totalScore < currentScore - arcgen::core::GREEDY_COST_IMPROVEMENT_TOL)
+                if (newResult.totalScore < currentScore - costImprovementTol_)
                 {
                     if constexpr (!std::is_void_v<DebugInfo>)
                     {
@@ -189,6 +205,7 @@ namespace arcgen::planner::connector
                     currentPath = std::move (newResult.path);
                     currentCosts = std::move (newResult.segmentCosts);
                     currentIds = std::move (newResult.segmentIds);
+                    successfulIterations++;
                 }
                 else
                 {
@@ -203,6 +220,7 @@ namespace arcgen::planner::connector
                 {
                     dbg->componentTimes["Smoothing"] = std::chrono::duration<double> (endTotal - tSmoothingStart).count ();
                     dbg->componentTimes["Total Connection"] = std::chrono::duration<double> (endTotal - startTotal).count ();
+                    dbg->smoothingIterations = successfulIterations;
                 }
             }
 
@@ -627,7 +645,7 @@ namespace arcgen::planner::connector
                         const double shortcutCost = best->second;
                         double newTotalLocal = costRetainA + shortcutCost + costRetainB;
 
-                        if (newTotalLocal < oldTotalLocal - arcgen::core::GREEDY_COST_IMPROVEMENT_TOL)
+                        if (newTotalLocal < oldTotalLocal - costImprovementTol_)
                         {
                             bestRes = ShortcutResult{targetPathIdx,
                                                      newTotalLocal, // Storing local total isn't used directly but good for debug

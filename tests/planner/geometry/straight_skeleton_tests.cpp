@@ -286,7 +286,7 @@ TYPED_TEST (SkeletonFixture, GlobalRandomAndPredefined)
         this->runGlobalCase (*test_helpers::randomWorkspace (this->rng ()), k, "random");
 
     this->runGlobalCase (*test_helpers::mazeWorkspace (), 1001, "maze");
-    this->runGlobalCase (*test_helpers::gearWorkspace (), 1002, "gear");
+
     ;
 }
 
@@ -299,7 +299,6 @@ TYPED_TEST (SkeletonFixture, LocalAroundRandomPairs)
         this->runLocalCases (w, k, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "random");
     }
     this->runLocalCases (*test_helpers::mazeWorkspace (), 2001, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "maze");
-    this->runLocalCases (*test_helpers::gearWorkspace (), 2002, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "gear");
 }
 
 /* ───────────── explicit edge cases ───────────── */

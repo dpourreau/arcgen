@@ -29,6 +29,19 @@ namespace test_helpers
     }
 
     /**
+     * @brief Root directory for stats: <current_workdir>/stats.
+     * @return Absolute path to the stats root (created if missing).
+     */
+    inline std::filesystem::path statsRoot ()
+    {
+        std::filesystem::path root = std::filesystem::current_path () / "stats";
+        std::error_code ec;
+        std::filesystem::create_directories (root, ec);
+        (void)ec;
+        return root;
+    }
+
+    /**
      * @brief Build a plot file path, creating intermediate directories.
      * @param subdirs   Hierarchy below the plots root, e.g. { "skeleton", "global" }.
      * @param filename  Final filename, e.g. "ok_42.svg".

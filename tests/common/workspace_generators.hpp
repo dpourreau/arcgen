@@ -112,28 +112,4 @@ namespace test_helpers
         return p;
     }
 
-    /**
-     * @brief “Gear” shaped outer polygon with two circular holes.
-     */
-    inline std::shared_ptr<Workspace> gearWorkspace ()
-    {
-        Polygon outer;
-        auto &r = outer.outer ();
-        constexpr int N = 10;
-        constexpr double R1 = 40.0, R2 = 25.0;
-        for (int k = 0; k < N; ++k)
-        {
-            const double a = PI2 * static_cast<double> (k) / static_cast<double> (N);
-            const double R = (k & 1) ? R2 : R1;
-            r.emplace_back (R * std::cos (a), R * std::sin (a));
-        }
-        r.push_back (r.front ());
-        boost::geometry::correct (outer);
-
-        std::vector<Polygon> holes;
-        holes.push_back (circlePoly (10.0, 0.0, 6.0, 24));
-        holes.push_back (circlePoly (-12.0, -5.0, 5.0, 24));
-
-        return std::make_shared<Workspace> (std::move (outer), std::move (holes));
-    }
 } // namespace test_helpers

@@ -42,7 +42,8 @@
             "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "AG_BUILD_TESTS": "ON"
+                "AG_BUILD_TESTS": "ON",
+                "AG_ENABLE_TEST_REPORT": "ON"
             }
         },
         {
@@ -52,7 +53,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "AG_BUILD_TESTS": "ON",
-                "AG_ENABLE_PLOTS": "ON"
+                "AG_ENABLE_PLOTS": "ON",
+                "AG_ENABLE_TEST_REPORT": "ON"
             }
         },
         {

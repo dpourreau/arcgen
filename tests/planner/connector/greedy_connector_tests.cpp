@@ -99,6 +99,20 @@ TEST_F (GreedyConnectorFixture, ConfigurationValidation)
     EXPECT_NO_THROW (ConnectorType (1.0, 3, 1));
 }
 
+/// @brief Verify that custom configuration parameters are correctly accepted and validated.
+TEST_F (GreedyConnectorFixture, CustomConfiguration)
+{
+    // Default minResampleInterval is 1e-3. 1e-4 throws.
+    EXPECT_THROW (ConnectorType (1e-4), std::invalid_argument);
+
+    // Customize minResampleInterval to 1e-5. 1e-4 should now pass.
+    // Signature: (resample, maxIter, lookahead, minResample, costTol)
+    EXPECT_NO_THROW (ConnectorType (1e-4, 3, 3, 1e-5, 0.1));
+
+    // Customize costImprovementTol (just checking construction)
+    EXPECT_NO_THROW (ConnectorType (3.0, 3, 3, 1e-3, 0.05));
+}
+
 /// @brief Verify connection failure/warning for direct 2-point connections (known limitation).
 TEST_F (GreedyConnectorFixture, BasicConnection)
 {
@@ -175,6 +189,7 @@ namespace
 
         std::vector<Step> history;
         std::map<std::string, double> componentTimes;
+        int smoothingIterations{0};
     };
 } // namespace
 
