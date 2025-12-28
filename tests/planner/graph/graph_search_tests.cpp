@@ -1,9 +1,8 @@
 #include <arcgen.hpp>
 
-#include <common/plot_dir.hpp>
-#include <common/test_stats.hpp>
-#include <common/visualizer.hpp>
-#include <common/workspace_generators.hpp>
+#include <utils/output_paths.hpp>
+#include <utils/visualizer.hpp>
+#include <utils/workspace_generators.hpp>
 
 #include <boost/geometry.hpp>
 
@@ -21,9 +20,8 @@
 
 using namespace arcgen::core;
 using namespace arcgen::planner::geometry;
-using test_helpers::RunningStats;
-using test_helpers::ScopedTimer;
-using test_helpers::Visualizer;
+
+using arcgen::utils::Visualizer;
 
 namespace bg = boost::geometry;
 
@@ -91,14 +89,11 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
     using Search = SearchT;
     using Graph = arcgen::planner::geometry::Graph;
 
-    inline static Workspace W_{*test_helpers::mazeWorkspace ()};
+    inline static Workspace W_{*arcgen::utils::mazeWorkspace ()};
     inline static arcgen::planner::geometry::StraightSkeleton skel_;
     inline static Graph G_{skel_.generate (W_)};
-    inline static RunningStats stats_{};
 
     MazeTimingFixture () : rng_ (seedCounter_++) {}
-
-    static void TearDownTestSuite () { stats_.printSummary (std::string (NameTag<Search>::str) + " – maze search"); }
 
     void runOne ([[maybe_unused]] int id)
     {
@@ -111,8 +106,6 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 
         std::vector<State> coarse;
         {
-            ScopedTimer t (stats_);
-            (void)t;
             coarse = search_.search (G_, s, g);
         }
 
@@ -135,7 +128,7 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 #ifdef AG_ENABLE_PLOTS
         std::ostringstream fn;
         fn << NameTag<Search>::str << '_' << (ok ? "ok_" : "fail_") << id << ".svg";
-        auto outPath = test_helpers::plotFile ({"search", NameTag<Search>::str}, fn.str ());
+        auto outPath = arcgen::utils::plotFile ({"search", NameTag<Search>::str}, fn.str ());
         Visualizer svg (outPath.string (), 900);
         svg.drawRegion (W_);
         svg.drawSkeleton (G_);

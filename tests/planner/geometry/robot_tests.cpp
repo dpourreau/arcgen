@@ -5,10 +5,9 @@
  */
 #include <arcgen.hpp>
 
-#include <common/plot_dir.hpp>
-#include <common/test_stats.hpp>
-#include <common/visualizer.hpp>
-#include <common/workspace_generators.hpp>
+#include <utils/output_paths.hpp>
+#include <utils/visualizer.hpp>
+#include <utils/workspace_generators.hpp>
 
 #include <boost/geometry.hpp>
 #include <gtest/gtest.h>
@@ -22,24 +21,12 @@ using namespace arcgen::core;
 
 namespace bg = boost::geometry;
 
-using test_helpers::RunningStats;
-using test_helpers::ScopedTimer;
-
 /**
  * @brief Fixture collecting timing stats for Robot APIs.
  */
 class RobotFixture : public ::testing::Test
 {
   protected:
-    static void TearDownTestSuite ()
-    {
-        transformStats_.printSummary ("Robot.at across states");
-        coveredStats_.printSummary ("Robot.coveredBy per placement vs workspace");
-    }
-
-    // Stats exposed to tests
-    inline static RunningStats transformStats_{};
-    inline static RunningStats coveredStats_{};
 };
 
 /**
@@ -105,52 +92,52 @@ TEST_F (RobotFixture, Ellipse)
         std::vector<Polygon> poses;
         poses.reserve (states.size ());
         {
-            ScopedTimer t (transformStats_);
             for (const auto &s : states)
                 poses.push_back (robot.at (s));
-        }
-        for (std::size_t i = 0; i < states.size (); ++i)
-        {
-            Polygon pB = robot.at (states[i].x, states[i].y, states[i].heading);
-            EXPECT_TRUE (bg::equals (poses[i], pB));
-        }
+            for (std::size_t i = 0; i < states.size (); ++i)
+            {
+                Polygon pB = robot.at (states[i].x, states[i].y, states[i].heading);
+                EXPECT_TRUE (bg::equals (poses[i], pB));
+            }
 
-        // 2) Swept coverage: every placement polygon covered by workspace
-        {
-            ScopedTimer t (coveredStats_);
-            bool allCovered = true;
-            for (const auto &s : states)
-                allCovered = allCovered && workspace.coveredBy (robot.at (s));
-            EXPECT_TRUE (allCovered);
-        }
+            // 2) Swept coverage: every placement polygon covered by workspace
+            {
+                bool allCovered = true;
+                for (const auto &s : states)
+                    allCovered = allCovered && workspace.coveredBy (robot.at (s));
+                EXPECT_TRUE (allCovered);
+            }
 
-        // 3) Area preservation sanity: spot-check a handful of placements
-        const double areaBody = std::fabs (bg::area (robot.body ()));
-        for (int i : {0, sampleCount / 8, sampleCount / 4, (3 * sampleCount) / 8, sampleCount / 2})
-        {
-            Polygon poly = robot.at (states[static_cast<size_t> (i)]);
-            EXPECT_NEAR (std::fabs (bg::area (poly)), areaBody, 1e-12);
-        }
+            // 3) Area preservation sanity: spot-check a handful of placements
+            const double areaBody = std::fabs (bg::area (robot.body ()));
+            for (int i : {0, sampleCount / 8, sampleCount / 4, (3 * sampleCount) / 8, sampleCount / 2})
+            {
+                Polygon poly = robot.at (states[static_cast<size_t> (i)]);
+                EXPECT_NEAR (std::fabs (bg::area (poly)), areaBody, 1e-12);
+            }
 
 #ifdef AG_ENABLE_PLOTS
-        // Plot workspace (green), ellipse, robot outlines, and red points
-        auto outPath = test_helpers::plotFile ({"robot", "ellipse"}, std::string ("ellipse_") + name + ".svg");
-        test_helpers::Visualizer svg (outPath.string (), 900);
-        svg.drawRegion (workspace);
-        svg.drawPath (states);
+            // Plot workspace (green), ellipse, robot outlines, and red points
+            // Plot workspace (green), ellipse, robot outlines, and red points
+            auto outPath = arcgen::utils::plotFile ({"robot", "ellipse"}, std::string ("ellipse_") + name + ".svg");
+            arcgen::utils::Visualizer svg (outPath.string (), 900);
+            const auto &pal = svg.getPalette ();
+            svg.drawRegion (workspace);
+            svg.drawPath (states);
 
-        for (size_t i = 0; i < states.size (); i += 12)
-        {
-            svg.drawPolygon (robot.at (states[i]), "none", "#000000", 1.0, 1.0);
-            svg.drawPolygon (test_helpers::circlePoly (states[i].x, states[i].y, 0.1, 16), "#ff0000", "none", 0.0, 1.0);
+            for (size_t i = 0; i < states.size (); i += 12)
+            {
+                svg.drawPolygon (robot.at (states[i]), "none", pal.robotFill, 1.0, 1.0);
+                svg.drawPolygon (arcgen::utils::circlePoly (states[i].x, states[i].y, 0.1, 16), "#ff0000", "none", 0.0, 1.0);
+            }
+
+            svg.drawAxes ();
+            svg.finish ();
+#endif
         }
 
-        svg.drawAxes ();
-        svg.finish ();
-#endif
+        // per-robot plotting handled inside the loop above
     }
-
-    // per-robot plotting handled inside the loop above
 }
 
 /**
@@ -212,40 +199,40 @@ TEST_F (RobotFixture, HalfTurnVShape)
         std::vector<Polygon> placements;
         placements.reserve (states.size ());
         {
-            ScopedTimer t (transformStats_);
             for (const auto &s : states)
                 placements.push_back (robot.at (s));
-        }
-        for (std::size_t i = 0; i < states.size (); ++i)
-        {
-            Polygon q = robot.at (states[i].x, states[i].y, states[i].heading);
-            EXPECT_TRUE (bg::equals (placements[i], q));
-        }
+            for (std::size_t i = 0; i < states.size (); ++i)
+            {
+                Polygon q = robot.at (states[i].x, states[i].y, states[i].heading);
+                EXPECT_TRUE (bg::equals (placements[i], q));
+            }
 
-        // 2) Swept coverage: every placement polygon covered by workspace
-        {
-            ScopedTimer t (coveredStats_);
-            bool allCovered = true;
-            for (const auto &s : states)
-                allCovered = allCovered && workspace.coveredBy (robot.at (s));
-            EXPECT_TRUE (allCovered);
-        }
+            // 2) Swept coverage: every placement polygon covered by workspace
+            {
+                bool allCovered = true;
+                for (const auto &s : states)
+                    allCovered = allCovered && workspace.coveredBy (robot.at (s));
+                EXPECT_TRUE (allCovered);
 
 #ifdef AG_ENABLE_PLOTS
-        // Plot per-shape
-        auto outPath = test_helpers::plotFile ({"robot", "vshape"}, std::string ("vshape_") + name + ".svg");
-        test_helpers::Visualizer svg (outPath.string (), 900);
-        svg.drawRegion (workspace);
-        svg.drawPath (states);
+                // Plot per-shape
+                // Plot per-shape
+                auto outPath = arcgen::utils::plotFile ({"robot", "vshape"}, std::string ("vshape_") + name + ".svg");
+                arcgen::utils::Visualizer svg (outPath.string (), 900);
+                const auto &pal = svg.getPalette ();
+                svg.drawRegion (workspace);
+                svg.drawPath (states);
 
-        for (size_t i = 0; i < states.size (); i += 10)
-        {
-            svg.drawPolygon (robot.at (states[i]), "none", "#000000", 1.0, 1.0);
-            svg.drawPolygon (test_helpers::circlePoly (states[i].x, states[i].y, 0.1, 16), "#ff0000", "none", 0.0, 1.0);
-        }
+                for (size_t i = 0; i < states.size (); i += 10)
+                {
+                    svg.drawPolygon (robot.at (states[i]), "none", pal.robotFill, 1.0, 1.0);
+                    svg.drawPolygon (arcgen::utils::circlePoly (states[i].x, states[i].y, 0.1, 16), "#ff0000", "none", 0.0, 1.0);
+                }
 
-        svg.drawAxes ();
-        svg.finish ();
+                svg.drawAxes ();
+                svg.finish ();
 #endif
+            }
+        }
     }
 }

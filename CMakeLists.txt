@@ -16,10 +16,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # ──────────────────────────────────────────────────────────────
 option(AG_BUILD_TESTS           "Build unit / property / timing tests"                          OFF)
 option(AG_ENABLE_PLOTS          "Generate SVG plots in tests"                                   OFF)
+option(AG_BUILD_DEMOS           "Build demo tools (e.g. visualization generator)"               OFF)
 option(AG_STRICT_WARNINGS       "Enable a strict warnings profile"                              ON)
 option(AG_ENABLE_IPO            "Enable inter-procedural optimization (LTO)"                    OFF)
 option(AG_ENABLE_OPENMP         "Enable OpenMP parallelism in arcgen"                           OFF)
-option(AG_ENABLE_TEST_REPORT    "Generate a comprehensive planner statistics report from tests" ${AG_ENABLE_PLOTS})
+option(AG_ENABLE_TEST_REPORT    "Generate a comprehensive planner statistics report from tests" OFF)
 if (AG_ENABLE_TEST_REPORT)
     add_compile_definitions (AG_ENABLE_TEST_REPORT)
 endif ()
@@ -133,6 +134,14 @@ install(FILES
 )
 
 # ──────────────────────────────────────────────────────────────
+#  Utils Helper Library (Shared by Tests & Tools)
+# ──────────────────────────────────────────────────────────────
+add_library(arcgen_utils INTERFACE)
+add_library(arcgen::utils ALIAS arcgen_utils)
+target_include_directories(arcgen_utils INTERFACE common)
+target_link_libraries(arcgen_utils INTERFACE arcgen::arcgen)
+
+# ──────────────────────────────────────────────────────────────
 #  Tests
 # ──────────────────────────────────────────────────────────────
 if(AG_BUILD_TESTS)
@@ -170,11 +179,13 @@ if(AG_BUILD_TESTS)
     tests/planner/connector/greedy_connector_tests.cpp
     tests/planner/graph/graph_search_tests.cpp
     tests/planner/engine/search_engine_tests.cpp
+
   )
 
   target_link_libraries(ag_tests
     PRIVATE
       arcgen::arcgen
+      arcgen::utils
       GTest::gtest_main
   )
 
@@ -231,4 +242,31 @@ if(AG_BUILD_TESTS)
     DISCOVERY_TIMEOUT 60
     PROPERTIES LABELS "arcgen"
   )
+endif()
+# ──────────────────────────────────────────────────────────────
+#  Tools / Demos
+# ──────────────────────────────────────────────────────────────
+if(AG_BUILD_DEMOS)
+  message(STATUS "Building Demos (Visualization Tool)")
+  add_executable(generate_visualizations tools/generate_visualizations.cpp)
+  
+  target_link_libraries(generate_visualizations
+    PRIVATE
+      arcgen::arcgen
+      arcgen::utils
+  )
+  
+  target_include_directories(generate_visualizations SYSTEM
+    PRIVATE
+      ${Boost_INCLUDE_DIRS}
+  )
+
+  # Strict warnings for tool as well
+  if(AG_STRICT_WARNINGS)
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+          target_compile_options(generate_visualizations PRIVATE -Wall -Wextra -O3)
+      else()
+          target_compile_options(generate_visualizations PRIVATE -Wall -Wextra -O3)
+      endif()
+  endif()
 endif()

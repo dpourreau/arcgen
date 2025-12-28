@@ -281,6 +281,8 @@ namespace arcgen::planner::engine
          */
         [[nodiscard]] std::expected<std::vector<State>, PlanningError> plan (State &start, State &goal, DebugInfo *dbg)
         {
+            auto tStart = std::chrono::steady_clock::now ();
+
             if (dbg)
             {
                 dbg->history.clear ();
@@ -290,6 +292,20 @@ namespace arcgen::planner::engine
                 dbg->smoothingIterations = 0;
             }
 
+            auto result = planImpl (start, goal, dbg);
+
+            if (dbg)
+            {
+                auto tEnd = std::chrono::steady_clock::now ();
+                dbg->componentTimes["Total Planning Time"] = std::chrono::duration<double> (tEnd - tStart).count ();
+            }
+
+            return result;
+        }
+
+      private:
+        [[nodiscard]] std::expected<std::vector<State>, PlanningError> planImpl (State &start, State &goal, DebugInfo *dbg)
+        {
             if (!steering_ || !graphSearch_ || !skeleton_ || !workspace_ || !connector_)
                 return std::unexpected (PlanningError::InternalError); // badly initialized
 
@@ -301,9 +317,10 @@ namespace arcgen::planner::engine
 
             // ── Stage 1: direct (enumerate + constraints)
             {
-                // Measure time? Direct connection is usually negligible but we can add it if needed.
+                auto t0 = std::chrono::steady_clock::now ();
                 if (auto best = evaluator.bestStatesBetween (start, goal))
                 {
+                    auto t1 = std::chrono::steady_clock::now ();
                     if (dbg)
                     {
                         // Record direct connection as a step
@@ -311,6 +328,8 @@ namespace arcgen::planner::engine
                         step.name = "Direct";
                         step.path = best->first;
                         step.stats.totalCost = best->second;
+                        step.computationTime = std::chrono::duration<double> (t1 - t0).count ();
+
                         if (const auto *cset = evaluator.getConstraints ())
                         {
                             if (!cset->soft.empty ())
@@ -347,7 +366,15 @@ namespace arcgen::planner::engine
                     dbg->graph = graph; // copy for visualization
                 }
 
+                auto tConn0 = std::chrono::steady_clock::now ();
                 auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
+                auto tConn1 = std::chrono::steady_clock::now ();
+
+                if (dbg)
+                {
+                    dbg->componentTimes["Connection (" + stageName + ")"] = std::chrono::duration<double> (tConn1 - tConn0).count ();
+                }
+
                 if (path.empty ())
                     return std::nullopt;
 

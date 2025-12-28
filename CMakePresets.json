@@ -48,13 +48,14 @@
         },
         {
             "name": "release-plots",
-            "displayName": "Release + Tests + Plots",
+            "displayName": "Release + Tests + Plots + Demos",
             "inherits": "base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "AG_BUILD_TESTS": "ON",
                 "AG_ENABLE_PLOTS": "ON",
-                "AG_ENABLE_TEST_REPORT": "ON"
+                "AG_ENABLE_TEST_REPORT": "ON",
+                "AG_BUILD_DEMOS": "ON"
             }
         },
         {
@@ -89,6 +90,12 @@
         {
             "name": "release-plots",
             "configurePreset": "release-plots",
+            "jobs": 0
+        },
+        {
+            "name": "visualizations",
+            "configurePreset": "release-plots",
+            "targets": "generate_visualizations",
             "jobs": 0
         },
         {

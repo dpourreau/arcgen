@@ -29,7 +29,7 @@
 #include <string_view>
 #include <vector>
 
-namespace test_helpers
+namespace arcgen::utils
 {
     using namespace arcgen::core;
     using namespace arcgen::planner::geometry;
@@ -39,16 +39,21 @@ namespace test_helpers
      */
     struct Palette
     {
-        std::string bg = "#ffffff";           ///< Fill color for holes / background.
-        std::string regionFill = "#e9fef2";   ///< Fill color for the valid region.
-        std::string regionStroke = "#4f5b66"; ///< Stroke color for region outlines.
-        std::string skeletonEdge = "#a7adba"; ///< Stroke color for skeleton edges.
-        std::string pathForward = "#88d8b0";  ///< Stroke color for forward-motion segments.
-        std::string pathReverse = "#ef6c99";  ///< Stroke color for reverse-motion segments.
-        std::string pathNeutral = "#8f96a3";  ///< Stroke color for neutral / indeterminate segments.
-        std::string startPose = "#462ac7";    ///< Fill color for the start pose marker.
-        std::string goalPose = "#20b255";     ///< Fill color for the goal pose marker.
-        std::string axes = "#c0c5ce";         ///< Stroke color for axes.
+        std::string canvasBackground = "#373639ff"; ///< Background color for the entire generated image.
+        std::string bg = "#b55252ff";               ///< Fill color for holes.
+        std::string regionFill = "#fafafaff";       ///< Fill color for the valid region.
+        std::string regionStroke = "#1f1f20ff";     ///< Stroke color for region outlines.
+        std::string skeletonEdge = "#6d737fff";     ///< Stroke color for skeleton edges.
+        std::string pathForward = "#88d8b0";        ///< Stroke color for forward-motion segments.
+        std::string pathReverse = "#c088d8ff";      ///< Stroke color for reverse-motion segments.
+        std::string pathNeutral = "#dcdfd3ff";      ///< Stroke color for neutral / indeterminate segments.
+        std::string startPose = "#033aa9ff";        ///< Fill color for the start pose marker.
+        std::string goalPose = "#03a940ff";         ///< Fill color for the goal pose marker.
+        std::string axes = "#c0c5ce";               ///< Stroke color for axes.
+        std::string robotFill = "#375765ff";        ///< Fill color for robot footprint.
+        std::string robotGhost = "#375765ff";       ///< Fill color for robot ghost/trail.
+        std::string graphEdge = "#ffb300ff";        ///< Stroke color for graph edges / resampled points.
+        std::string anchor = "#800080ff";           ///< Fill color for fixed anchors.
     };
 
     /**
@@ -108,6 +113,11 @@ namespace test_helpers
             offsetY_ = dy;
             userOffset_ = true;
         }
+
+        /**
+         * @brief Access the active color palette.
+         */
+        [[nodiscard]] const Palette &getPalette () const { return palette_; }
 
         /**
          * @brief Draw Cartesian axes through the canvas center.
@@ -238,6 +248,20 @@ namespace test_helpers
             drawPose (s, rPx, color);
         }
 
+        // Styled ring writer with fill opacity and stroke opacity parameter.
+        template <class Ring>
+        void writeRingStyled (const Ring &ring, const std::string &fill, const std::string &stroke, double strokeWidth, double fillOpacity, double strokeOpacity)
+        {
+            out_ << "  <polygon fill=\"" << fill << "\" fill-opacity=\"" << fillOpacity << "\" stroke=\"" << stroke << "\" stroke-width=\"" << strokeWidth << "\" stroke-opacity=\""
+                 << strokeOpacity << "\" points=\"";
+            for (auto &v : ring)
+            {
+                const auto [x, y] = toSvg (v.x (), v.y ());
+                out_ << x << ',' << y << ' ';
+            }
+            out_ << "\"/>\n";
+        }
+
         /**
          * @brief Draw a single polygon with custom style.
          * @param poly         CCW, closed polygon.
@@ -245,8 +269,9 @@ namespace test_helpers
          * @param stroke       Stroke color.
          * @param strokeWidth  Stroke width in pixels.
          * @param fillOpacity  Opacity for the fill [0..1].
+         * @param strokeOpacity Opacity for the stroke [0..1].
          */
-        void drawPolygon (const Polygon &poly, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0)
+        void drawPolygon (const Polygon &poly, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0, double strokeOpacity = 1.0)
         {
             for (auto &v : poly.outer ())
                 trackWorld (v.x (), v.y ());
@@ -255,9 +280,9 @@ namespace test_helpers
                     trackWorld (v.x (), v.y ());
 
             ensureHeader ();
-            writeRingStyled (poly.outer (), fill, stroke, strokeWidth, fillOpacity);
+            writeRingStyled (poly.outer (), fill, stroke, strokeWidth, fillOpacity, strokeOpacity);
             for (const auto &hole : poly.inners ())
-                writeRingStyled (hole, palette_.regionFill, stroke, strokeWidth, 1.0);
+                writeRingStyled (hole, palette_.regionFill, stroke, strokeWidth, 1.0, strokeOpacity);
         }
 
         /**
@@ -267,8 +292,10 @@ namespace test_helpers
          * @param stroke       Stroke color.
          * @param strokeWidth  Stroke width in pixels.
          * @param fillOpacity  Opacity for the fill [0..1].
+         * @param strokeOpacity Opacity for the stroke [0..1].
          */
-        void drawMultiPolygon (const MultiPolygon &mp, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0)
+        void drawMultiPolygon (const MultiPolygon &mp, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0,
+                               double strokeOpacity = 1.0)
         {
             for (const auto &poly : mp)
             {
@@ -282,9 +309,9 @@ namespace test_helpers
 
             for (const auto &poly : mp)
             {
-                writeRingStyled (poly.outer (), fill, stroke, strokeWidth, fillOpacity);
+                writeRingStyled (poly.outer (), fill, stroke, strokeWidth, fillOpacity, strokeOpacity);
                 for (const auto &hole : poly.inners ())
-                    writeRingStyled (hole, palette_.regionFill, stroke, strokeWidth, 1.0);
+                    writeRingStyled (hole, palette_.regionFill, stroke, strokeWidth, 1.0, strokeOpacity);
             }
         }
 
@@ -361,8 +388,22 @@ namespace test_helpers
             }
         }
 
+        /**
+         * @brief Draw a world-space line segment.
+         * @param x0,y0  World-space start.
+         * @param x1,y1  World-space end.
+         * @param color  Stroke color.
+         * @param width  Stroke width in pixels.
+         */
+        void lineWorld (double x0, double y0, double x1, double y1, const std::string &color, double width)
+        {
+            const auto [sx0, sy0] = toSvg (x0, y0);
+            const auto [sx1, sy1] = toSvg (x1, y1);
+            lineSvg (sx0, sy0, sx1, sy1, color, width);
+        }
+
       private:
-        /*──────────────────── world extents tracking ───────────────────*/
+        /*──────────────────── header & transforms ──────────────────────*/
         /// @brief Reset world extents to ±∞ sentinels.
         void resetWorldExtents ()
         {
@@ -411,20 +452,6 @@ namespace test_helpers
                 out_ << x << ',' << y << ' ';
             }
             out_ << "\"/>\n";
-        }
-
-        /**
-         * @brief Draw a world-space line segment.
-         * @param x0,y0  World-space start.
-         * @param x1,y1  World-space end.
-         * @param color  Stroke color.
-         * @param width  Stroke width in pixels.
-         */
-        void lineWorld (double x0, double y0, double x1, double y1, const std::string &color, double width)
-        {
-            const auto [sx0, sy0] = toSvg (x0, y0);
-            const auto [sx1, sy1] = toSvg (x1, y1);
-            lineSvg (sx0, sy0, sx1, sy1, color, width);
         }
 
         /**
@@ -499,7 +526,9 @@ namespace test_helpers
             canvasWidth_ = canvasHeight_ = canvasPx_;
             out_ << R"(<?xml version="1.0"?>)"
                  << "\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"" << canvasWidth_ << "\" height=\"" << canvasHeight_ << "\" viewBox=\"0 0 " << canvasWidth_ << ' '
-                 << canvasHeight_ << "\">\n  <g>\n";
+                 << canvasHeight_ << "\">\n"
+                 << "  <rect width=\"" << canvasWidth_ << "\" height=\"" << canvasHeight_ << "\" fill=\"" << palette_.canvasBackground << "\"/>\n"
+                 << "  <g>\n";
             svgOpen_ = true;
         }
 
@@ -539,4 +568,4 @@ namespace test_helpers
         int canvasHeight_ = 0; ///< Canvas height in pixels.
     };
 
-} // namespace test_helpers
+} // namespace arcgen::utils

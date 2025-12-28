@@ -10,7 +10,7 @@
 #include <arcgen.hpp>
 #include <random>
 
-namespace test_helpers
+namespace arcgen::utils
 {
     using namespace arcgen::planner::geometry;
     using arcgen::core::PI;
@@ -112,4 +112,4 @@ namespace test_helpers
         return p;
     }
 
-} // namespace test_helpers
+} // namespace arcgen::utils

@@ -30,8 +30,8 @@ Given a start and goal pose, the engine attempts:
 3) Global skeleton: build once for the full workspace and reuse; run A* when local fails.
 
 The final path is constructed by the `Connector`:
-- **Greedy Stitching**: Connects consecutive waypoints using the steering policy. It employs a "longest-valid-segment" heuristic (DFS) to skip intermediate waypoints if a direct connection is feasible and beneficial.
-- **Smoothing**: An iterative pass that resamples the path (preserving joints) and attempts to replace local segments with direct shortcuts. This reduces path length and unnecessary manoeuvres while maintaining feasibility.
+- **Greedy Stitching**: Connects consecutive waypoints using the steering policy. It employs a "longest-valid-segment" heuristic (DFS) to skip intermediate waypoints if a direct connection is feasible and beneficial. The lookahead depth and cost improvement tolerance are configurable.
+- **Smoothing**: An iterative pass that resamples the path (preserving joints) and attempts to replace local segments with direct shortcuts. This reduces path length and unnecessary manoeuvres while maintaining feasibility. The resampling interval and maximum iterations are configurable.
 
 ## Constraints
 

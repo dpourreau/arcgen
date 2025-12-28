@@ -1,9 +1,9 @@
 #pragma once
 /**
- * @file   plot_dir.hpp
- * @brief  Centralized, build-folder-relative plotting paths for tests.
+ * @file   output_paths.hpp
+ * @brief  Centralized, build-folder-relative output paths for tests (plots, stats).
  *
- * All tests should create plots via this helper, so artifacts always land
+ * All tests should create plots/stats via this helper, so artifacts always land
  * inside the **current build subfolder** (CTest launches from there).
  */
 
@@ -13,7 +13,7 @@
 #include <string_view>
 #include <system_error>
 
-namespace test_helpers
+namespace arcgen::utils
 {
     /**
      * @brief Root directory for plots: <current_workdir>/plots.
@@ -60,4 +60,4 @@ namespace test_helpers
         return dir / std::string (filename);
     }
 
-} // namespace test_helpers
+} // namespace arcgen::utils
