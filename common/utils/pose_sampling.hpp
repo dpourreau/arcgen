@@ -11,7 +11,7 @@
 #include <cmath>
 #include <vector>
 
-namespace test_helpers
+namespace arcgen::utils
 {
     using namespace arcgen::planner::geometry;
     using arcgen::core::PI;
@@ -78,4 +78,4 @@ namespace test_helpers
         Polygon hd = orientedHalfDisk (cx, cy, heading, r, forward, 28);
         return W.coveredBy (hd);
     }
-} // namespace test_helpers
+} // namespace arcgen::utils

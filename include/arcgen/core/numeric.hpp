@@ -64,7 +64,7 @@ namespace arcgen::core
     inline constexpr double GREEDY_MIN_RESAMPLE_INTERVAL = 1e-3;
 
     /// Greedy connector cost improvement tolerance.
-    inline constexpr double GREEDY_COST_IMPROVEMENT_TOL = 1e-1;
+    inline constexpr double GREEDY_COST_IMPROVEMENT_TOL = 1.0;
 
     /*────────────────── Backward-compatibility aliases ─────────────────────
      * Prefer the ALL_CAPS names above. These aliases keep older code working.

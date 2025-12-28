@@ -5,10 +5,9 @@
 
 #include <arcgen.hpp>
 
-#include <common/plot_dir.hpp>
-#include <common/test_stats.hpp>
-#include <common/visualizer.hpp>
-#include <common/workspace_generators.hpp>
+#include <utils/output_paths.hpp>
+#include <utils/visualizer.hpp>
+#include <utils/workspace_generators.hpp>
 
 #include <boost/geometry.hpp>
 #include <boost/graph/graph_traits.hpp>
@@ -27,9 +26,8 @@
 
 using namespace arcgen::planner::geometry;
 using namespace arcgen::core;
-using test_helpers::RunningStats;
-using test_helpers::ScopedTimer;
-using test_helpers::Visualizer;
+
+using arcgen::utils::Visualizer;
 
 namespace bg = boost::geometry;
 
@@ -71,11 +69,6 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     SkeletonFixture () : rng_ (1337) {}
 
     /// @brief Print average timings for this skeleton (once per type).
-    static void TearDownTestSuite ()
-    {
-        globalStats_.printSummary (std::string (SkelName<SkeletonT>::value) + " – global skeleton generation");
-        localStats_.printSummary (std::string (SkelName<SkeletonT>::value) + " – local skeleton generation");
-    }
 
     /**
      * @brief Run a single global-case check with timing.
@@ -87,11 +80,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     {
         Graph G;
 
-        { // time only the generation
-            test_helpers::ScopedTimer timer (globalStats_);
-            (void)timer;
-            G = skel_.generate (W);
-        }
+        G = skel_.generate (W);
 
         bool ok = true;
         std::ostringstream why;
@@ -138,7 +127,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
         const char *tag = ok ? "ok" : "fail";
         std::ostringstream fn;
         fn << tag << '_' << id << ".svg";
-        auto outPath = test_helpers::plotFile ({"skeleton", SkelName<SkeletonT>::value, "global", std::string (label)}, fn.str ());
+        auto outPath = arcgen::utils::plotFile ({"skeleton", SkelName<SkeletonT>::value, "global", std::string (label)}, fn.str ());
         Visualizer svg (outPath.string (), 900);
         svg.drawRegion (W);
         svg.drawSkeleton (G);
@@ -197,11 +186,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
                 continue;
 
             Graph G;
-            {
-                ScopedTimer t (localStats_);
-                (void)t;
-                G = skel_.generate (localW);
-            }
+            G = skel_.generate (localW);
 
             bool ok = true;
             std::ostringstream why;
@@ -248,7 +233,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
             const char *tag = ok ? "ok_local" : "fail_local";
             std::ostringstream fn;
             fn << tag << "_w" << wid << "_p" << i << ".svg";
-            auto outPath = test_helpers::plotFile ({"skeleton", SkelName<SkeletonT>::value, "local", std::string (label)}, fn.str ());
+            auto outPath = arcgen::utils::plotFile ({"skeleton", SkelName<SkeletonT>::value, "local", std::string (label)}, fn.str ());
             Visualizer svg (outPath.string (), 900);
             svg.drawRegion (localW);
             svg.drawSkeleton (G);
@@ -272,8 +257,6 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     std::mt19937 rng_;
 
   private:
-    inline static RunningStats globalStats_{};
-    inline static RunningStats localStats_{};
 };
 
 using TestedSkeletons = ::testing::Types<StraightSkeleton>;
@@ -283,9 +266,9 @@ TYPED_TEST_SUITE (SkeletonFixture, TestedSkeletons);
 TYPED_TEST (SkeletonFixture, GlobalRandomAndPredefined)
 {
     for (int k = 0; k < GLOBAL_SAMPLES; ++k)
-        this->runGlobalCase (*test_helpers::randomWorkspace (this->rng ()), k, "random");
+        this->runGlobalCase (*arcgen::utils::randomWorkspace (this->rng ()), k, "random");
 
-    this->runGlobalCase (*test_helpers::mazeWorkspace (), 1001, "maze");
+    this->runGlobalCase (*arcgen::utils::mazeWorkspace (), 1001, "maze");
 
     ;
 }
@@ -295,10 +278,10 @@ TYPED_TEST (SkeletonFixture, LocalAroundRandomPairs)
 {
     for (int k = 0; k < GLOBAL_SAMPLES; ++k)
     {
-        auto w = *test_helpers::randomWorkspace (this->rng ());
+        auto w = *arcgen::utils::randomWorkspace (this->rng ());
         this->runLocalCases (w, k, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "random");
     }
-    this->runLocalCases (*test_helpers::mazeWorkspace (), 2001, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "maze");
+    this->runLocalCases (*arcgen::utils::mazeWorkspace (), 2001, LOCAL_PAIRS, R_MIN_TEST, LOCAL_MARGIN_MULT, "maze");
 }
 
 /* ───────────── explicit edge cases ───────────── */

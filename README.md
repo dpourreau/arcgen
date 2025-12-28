@@ -199,7 +199,6 @@ CMake options (all `OFF` by default unless noted):
   - `release` and `release-tests` do not generate plots.
 * `AG_STRICT_WARNINGS` (**ON** by default) — a strict warnings profile.
 * `AG_ENABLE_IPO` — turn on LTO/IPO if supported.
-* `AG_ENABLE_IPO` — turn on LTO/IPO if supported.
 * `AG_ENABLE_OPENMP` — enable OpenMP in ArcGen (and propagate flags).
 * `AG_ENABLE_TEST_REPORT` — enable generation of aggregate statistics reports (ON by default).
 
@@ -256,14 +255,14 @@ Presets (`CMakePresets.json`) you can use out-of-the-box:
 │           ├── reeds_shepp.hpp
 │           ├── path.hpp               # Path container
 │           └── steering.hpp           # CRTP base
+├── common/
+│   └── utils/
+│       ├── output_paths.hpp
+│       ├── pose_sampling.hpp
+│       ├── visualizer.hpp
+│       └── workspace_generators.hpp
 ├── tests/
 │   ├── README.md
-│   ├── common/
-│   │   ├── plot_dir.hpp
-│   │   ├── pose_sampling.hpp
-│   │   ├── test_stats.hpp
-│   │   ├── visualizer.hpp
-│   │   └── workspace_generators.hpp
 │   ├── core/
 │   │   ├── control_tests.cpp
 │   │   ├── math_tests.cpp

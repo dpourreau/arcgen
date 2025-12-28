@@ -5,11 +5,10 @@
 
 #include <arcgen.hpp>
 
-#include <common/plot_dir.hpp>
-#include <common/pose_sampling.hpp>
-#include <common/test_stats.hpp>
-#include <common/visualizer.hpp>
-#include <common/workspace_generators.hpp>
+#include <utils/output_paths.hpp>
+#include <utils/pose_sampling.hpp>
+#include <utils/visualizer.hpp>
+#include <utils/workspace_generators.hpp>
 
 #include <boost/geometry.hpp>
 
@@ -35,13 +34,13 @@ using namespace arcgen::steering;
 using arcgen::planner::graph::AStar;
 using AStarSearch = arcgen::planner::graph::AStar<arcgen::planner::geometry::Graph>;
 namespace connector = arcgen::planner::connector;
-using test_helpers::Visualizer;
+using arcgen::utils::Visualizer;
 
 namespace bg = boost::geometry;
 
 /* ───────── configuration ───────── */
 constexpr double R_MIN = 1.5;     ///< [m]
-constexpr double STEP = 0.2;      ///< [m] steering discretisation
+constexpr double STEP = 0.3;      ///< [m] steering discretisation
 constexpr double EPS_GOAL = 0.01; ///< [m] goal proximity
 constexpr int SAMPLES = 50;       ///< cases per workspace kind
 constexpr double LOCAL_BB_MARGIN = 10.0;
@@ -94,13 +93,37 @@ namespace
             {
                 // Computation Time (Total)
                 double totalTime = 0.0;
-                double tSkel = dbg->componentTimes.count ("Skeleton Gen") ? dbg->componentTimes.at ("Skeleton Gen") : 0.0;
-                double tSearch = dbg->componentTimes.count ("Graph Search") ? dbg->componentTimes.at ("Graph Search") : 0.0;
-                double tConn = dbg->componentTimes.count ("Total Connection") ? dbg->componentTimes.at ("Total Connection") : 0.0;
 
-                if (tConn == 0.0)
+                double tSkel = 0.0;
+                if (dbg->componentTimes.count ("Skeleton Generation (Local)"))
+                    tSkel += dbg->componentTimes.at ("Skeleton Generation (Local)");
+                if (dbg->componentTimes.count ("Skeleton Generation (Global)"))
+                    tSkel += dbg->componentTimes.at ("Skeleton Generation (Global)");
+
+                double tSearch = 0.0;
+                if (dbg->componentTimes.count ("Graph Search (Local)"))
+                    tSearch += dbg->componentTimes.at ("Graph Search (Local)");
+                if (dbg->componentTimes.count ("Graph Search (Global)"))
+                    tSearch += dbg->componentTimes.at ("Graph Search (Global)");
+
+                double tConn = 0.0;
+                // Sum connection times from stages if available
+                if (dbg->componentTimes.count ("Connection (Local)"))
+                    tConn += dbg->componentTimes.at ("Connection (Local)");
+                if (dbg->componentTimes.count ("Connection (Global)"))
+                    tConn += dbg->componentTimes.at ("Connection (Global)");
+
+                // Fallback to internal connector total if explicit stage not found (compatibility)
+                if (tConn == 0.0 && dbg->componentTimes.count ("Total Connection"))
+                    tConn = dbg->componentTimes.at ("Total Connection");
+
+                if (dbg->componentTimes.count ("Total Planning Time"))
                 {
-                    // Fallback: sum all steps
+                    totalTime = dbg->componentTimes.at ("Total Planning Time");
+                }
+                else if (tConn == 0.0 && tSkel == 0.0 && tSearch == 0.0)
+                {
+                    // Fallback: sum all steps if components are missing
                     for (const auto &step : dbg->history)
                         totalTime += step.computationTime;
                 }
@@ -151,40 +174,6 @@ namespace
         std::map<std::string, PlannerStats> stats_;
         std::mutex mutex_;
     };
-
-    // --- Safe Maths Helpers ---
-    double getMean (const std::vector<double> &v)
-    {
-        if (v.empty ())
-            return 0.0;
-        return std::reduce (v.begin (), v.end ()) / static_cast<double> (v.size ());
-    }
-    double getMin (const std::vector<double> &v)
-    {
-        if (v.empty ())
-            return 0.0;
-        return *std::min_element (v.begin (), v.end ());
-    }
-    double getMax (const std::vector<double> &v)
-    {
-        if (v.empty ())
-            return 0.0;
-        return *std::max_element (v.begin (), v.end ());
-    }
-    double getStdDev (const std::vector<double> &v)
-    {
-        if (v.size () < 2)
-            return 0.0;
-        double mean = getMean (v);
-        double sqSum = std::transform_reduce (v.begin (), v.end (), 0.0, std::plus<> (), [mean] (double x) { return (x - mean) * (x - mean); });
-        return std::sqrt (sqSum / static_cast<double> (v.size () - 1));
-    }
-    double getMeanInt (const std::vector<int> &v)
-    {
-        if (v.empty ())
-            return 0.0;
-        return static_cast<double> (std::reduce (v.begin (), v.end ())) / static_cast<double> (v.size ());
-    }
 
 } // namespace
 
@@ -274,7 +263,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
      */
     bool locallyReachable (const Workspace &workspace, const State &s, bool isStart, bool withFootprint) const
     {
-        using test_helpers::halfDiskInside;
+        using arcgen::utils::halfDiskInside;
 
         double radius = R_MIN * 2; // base local-reachability radius (point robot)
 
@@ -432,9 +421,10 @@ template <class Cfg> class EngineFixture : public ::testing::Test
 
             std::ostringstream fn;
             fn << tag << "_" << (robot ? "fp_" : "") << id << "_step_" << stepIdx++ << "_" << safeName << ".svg";
-            auto outPath = test_helpers::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
+            auto outPath = arcgen::utils::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
 
             Visualizer svg (outPath.string (), 900);
+            const auto &pal = svg.getPalette ();
 
             if (auto wptr = engine.getWorkspace ())
             {
@@ -449,27 +439,26 @@ template <class Cfg> class EngineFixture : public ::testing::Test
 
             // Resampled Points (Indices/Interpolated with fixed candidates) -> Orange, Small
             for (const auto &s : step.resampledPoints)
-                svg.drawPose (s, 6.0, "#ffb300ff");
+                svg.drawPose (s, 6.0, pal.graphEdge);
 
             // Fixed Anchors (Waypoints/Joints) -> Purple, Big
             for (const auto &s : step.fixedAnchors)
-                svg.drawPose (s, 9.0, "#800080ff");
+                svg.drawPose (s, 9.0, pal.anchor);
 
             // Draw robot footprint outlines along the step path if robot is present
             if (robot && !step.path.empty ())
             {
                 const std::size_t n = step.path.size ();
-                std::size_t stride = (n > 81) ? 40 : (n > 51) ? 25 : 1;
-                for (std::size_t i = stride; i + stride < n; i += stride)
-                    svg.drawPolygon (robot->at (step.path[i]), "none", "#375765ff", 0.8, 1.0);
+                for (std::size_t i = 0; i < n; ++i)
+                    svg.drawPolygon (robot->at (step.path[i]), "none", pal.robotFill, 0.8, 1.0);
             }
 
             svg.drawStartPose (start);
             svg.drawGoalPose (goal);
             if (robot)
             {
-                svg.drawPolygon (robot->at (start), "none", "#375765ff", 0.8, 1.0);
-                svg.drawPolygon (robot->at (goal), "none", "#375765ff", 0.8, 1.0);
+                svg.drawPolygon (robot->at (start), "none", pal.robotFill, 0.8, 1.0);
+                svg.drawPolygon (robot->at (goal), "none", pal.robotFill, 0.8, 1.0);
             }
 
             svg.drawAxes ();
@@ -651,7 +640,7 @@ TYPED_TEST (EngineFixture, PlansWithinRandomWorkspaces)
     std::mt19937 randomEngine (123);
     for (int k = 0; k < SAMPLES; ++k)
     {
-        auto workspace = test_helpers::randomWorkspace (randomEngine);
+        auto workspace = arcgen::utils::randomWorkspace (randomEngine);
         this->runOneOnWorkspace (workspace, k, "random");
     }
 }
@@ -659,7 +648,7 @@ TYPED_TEST (EngineFixture, PlansWithinRandomWorkspaces)
 /// @test Maze workspace (narrow corridors).
 TYPED_TEST (EngineFixture, PlansWithinMazeWorkspace)
 {
-    auto workspace = test_helpers::mazeWorkspace ();
+    auto workspace = arcgen::utils::mazeWorkspace ();
     for (int k = 0; k < SAMPLES; ++k)
         this->runOneOnWorkspace (workspace, k, "maze");
 }
@@ -670,7 +659,7 @@ TYPED_TEST (EngineFixture, PlansWithinRandomWorkspacesWithFootprint)
     std::mt19937 randomEngine (456);
     for (int k = 0; k < SAMPLES; ++k)
     {
-        auto workspace = test_helpers::randomWorkspace (randomEngine);
+        auto workspace = arcgen::utils::randomWorkspace (randomEngine);
         this->runOneOnWorkspaceFootprint (workspace, k, "random_fp");
     }
 }
@@ -678,7 +667,7 @@ TYPED_TEST (EngineFixture, PlansWithinRandomWorkspacesWithFootprint)
 /// @test Maze workspace with footprint-aware collision.
 TYPED_TEST (EngineFixture, PlansWithinMazeWorkspaceWithFootprint)
 {
-    auto workspace = test_helpers::mazeWorkspace ();
+    auto workspace = arcgen::utils::mazeWorkspace ();
     for (int k = 0; k < SAMPLES; ++k)
         this->runOneOnWorkspaceFootprint (workspace, k, "maze_fp");
 }
@@ -688,6 +677,40 @@ TYPED_TEST (EngineFixture, PlansWithinMazeWorkspaceWithFootprint)
 
 class TestReportEnvironment : public ::testing::Environment
 {
+    // --- Safe Maths Helpers ---
+    static double getMean (const std::vector<double> &v)
+    {
+        if (v.empty ())
+            return 0.0;
+        return std::reduce (v.begin (), v.end ()) / static_cast<double> (v.size ());
+    }
+    static double getMin (const std::vector<double> &v)
+    {
+        if (v.empty ())
+            return 0.0;
+        return *std::min_element (v.begin (), v.end ());
+    }
+    static double getMax (const std::vector<double> &v)
+    {
+        if (v.empty ())
+            return 0.0;
+        return *std::max_element (v.begin (), v.end ());
+    }
+    static double getStdDev (const std::vector<double> &v)
+    {
+        if (v.size () < 2)
+            return 0.0;
+        double mean = getMean (v);
+        double sqSum = std::transform_reduce (v.begin (), v.end (), 0.0, std::plus<> (), [mean] (double x) { return (x - mean) * (x - mean); });
+        return std::sqrt (sqSum / static_cast<double> (v.size () - 1));
+    }
+    static double getMeanInt (const std::vector<int> &v)
+    {
+        if (v.empty ())
+            return 0.0;
+        return static_cast<double> (std::reduce (v.begin (), v.end ())) / static_cast<double> (v.size ());
+    }
+
   public:
     void TearDown () override
     {
@@ -696,7 +719,7 @@ class TestReportEnvironment : public ::testing::Environment
             return;
 
         // Use stats directory for reports
-        std::filesystem::path buildDir = test_helpers::statsRoot ();
+        std::filesystem::path buildDir = arcgen::utils::statsRoot ();
 
         writeTextReport (buildDir / "planner_stats_report.txt", stats);
         writeCsvReport (buildDir / "planner_stats.csv", stats);

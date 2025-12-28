@@ -5,9 +5,8 @@
 
 #pragma once
 
-#include <common/plot_dir.hpp>
-#include <common/test_stats.hpp>
-#include <common/visualizer.hpp>
+#include <utils/output_paths.hpp>
+#include <utils/visualizer.hpp>
 
 #include <arcgen.hpp>
 
@@ -23,9 +22,6 @@
 
 using namespace arcgen::core;
 using namespace arcgen::steering;
-using test_helpers::RunningStats;
-using test_helpers::ScopedTimer;
-using test_helpers::Visualizer;
 
 constexpr double R_MIN = 3.0;     ///< [m]
 constexpr double STEP = 0.30;     ///< [m]
@@ -75,8 +71,6 @@ template <class Generator> class SteeringFixture : public ::testing::Test
   protected:
     SteeringFixture () : gen_{Generator{R_MIN, STEP}}, rng_ (42), pos_ (-10.0, 10.0), ang_ (0.0, arcgen::core::two_pi) {}
 
-    static void TearDownTestSuite () { timing_.printSummary (std::string (GenName<Generator>::value) + " – shortestPath()"); }
-
     void checkPath (const State &start, const State &goal, const std::string &caseName)
     {
         // time + compute path
@@ -85,8 +79,6 @@ template <class Generator> class SteeringFixture : public ::testing::Test
         {
             State s_mut = start;
             State g_mut = goal;
-            ScopedTimer t (timing_);
-            (void)t;
             result = gen_.shortestPath (s_mut, g_mut);
         }
 
@@ -134,14 +126,14 @@ template <class Generator> class SteeringFixture : public ::testing::Test
         const char *tag = ok ? "ok" : "fail";
         std::ostringstream fn;
         fn << tag << '_' << caseName << ".svg";
-        auto outPath = test_helpers::plotFile ({"steering", GenName<Generator>::value}, fn.str ());
-        Visualizer svg (outPath.string (), 800);
+        auto outPath = arcgen::utils::plotFile ({"steering", GenName<Generator>::value}, fn.str ());
+        arcgen::utils::Visualizer svg (outPath.string (), 800);
         if (result.states)
             svg.drawPath (*result.states);
         if (result.states && !result.states->empty ())
         {
-            svg.drawStartPose (result.states->front (), 9.0, "#462ac7");
-            svg.drawGoalPose (result.states->back (), 9.0, "#20b255");
+            svg.drawStartPose (result.states->front (), 9.0);
+            svg.drawGoalPose (result.states->back (), 9.0);
         }
         svg.drawAxes ();
         svg.finish ();
@@ -166,8 +158,6 @@ template <class Generator> class SteeringFixture : public ::testing::Test
     std::mt19937 rng_;
     std::uniform_real_distribution<> pos_;
     std::uniform_real_distribution<> ang_;
-
-    inline static RunningStats timing_{};
 };
 
 TYPED_TEST_SUITE_P (SteeringFixture);
