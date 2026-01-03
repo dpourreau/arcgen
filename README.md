@@ -320,6 +320,7 @@ ArcGen ships with four small but meaningful test suites (enabled when `AG_BUILD_
 - `docs/STYLE.md` — Coding, documentation, and formatting guidelines.
 - `docs/ARCHITECTURE.md` — Overview of ArcGen internals and design.
 - `docs/TROUBLESHOOTING.md` — Common build and usage issues.
+- `docs/CROSS_COMPILATION.md` — Guide for compiling on powerful hosts (Mac/Linux/Windows) for Raspberry Pi.
 
 ## Architecture
 

@@ -1,7 +1,21 @@
 cmake_minimum_required(VERSION 3.23)
 
-# Use new behaviour for FindPackageHandleStandardArgs if present
-cmake_policy(SET CMP0167 NEW)
+# Use new behaviour for FindBoost if present (CMP0167)
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
+# Use new download timestamp behavior if present (CMP0135)
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
+# Enable ccache if available
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+  message(STATUS "Using ccache: ${CCACHE_PROGRAM}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
 
 # ──────────────────────────────────────────────────────────────
 #  Project
@@ -47,14 +61,57 @@ endif()
 # ──────────────────────────────────────────────────────────────
 #  Dependencies
 # ──────────────────────────────────────────────────────────────
-find_package(Boost REQUIRED)                # headers (graph & geometry)
+include(FetchContent)
 
-# CGAL uses legacy FindBoost internally; keep their behavior isolated.
+# 1. Boost (Header-Only)
+find_package(Boost 1.72 QUIET)
+if(NOT Boost_FOUND)
+  message(STATUS "Boost not found locally. Fetching Boost 1.83.0 (Flat)...")
+  FetchContent_Declare(
+    boost
+    URL https://archives.boost.io/release/1.83.0/source/boost_1_83_0.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP ON
+  )
+  # Populate only (skip build to treat as header-only)
+  FetchContent_GetProperties(boost)
+  if(NOT boost_POPULATED)
+    FetchContent_Populate(boost)
+  endif()
+  
+  set(Boost_INCLUDE_DIRS ${boost_SOURCE_DIR})
+  message(STATUS "Using fetched Boost from: ${Boost_INCLUDE_DIRS}")
+endif()
+
+# 2. CGAL (Header-Only)
+# CGAL uses legacy FindBoost internally; suppress policy warning if we found system boost
 if(POLICY CMP0167)
   cmake_policy(PUSH)
-  cmake_policy(SET CMP0167 OLD)             # allow legacy FindBoost usage inside CGAL
+  cmake_policy(SET CMP0167 OLD)
 endif()
-find_package(CGAL REQUIRED CONFIG)          # imported target CGAL::CGAL
+
+find_package(CGAL QUIET CONFIG)
+if(NOT CGAL_FOUND)
+  message(STATUS "CGAL not found locally. Fetching CGAL 5.6...")
+  FetchContent_Declare(
+    cgal
+    URL https://github.com/CGAL/cgal/releases/download/v5.6/CGAL-5.6.tar.xz
+    DOWNLOAD_EXTRACT_TIMESTAMP ON
+  )
+  # Manually populate to avoid add_subdirectory which triggers CGAL's complex build
+  FetchContent_GetProperties(cgal)
+  if(NOT cgal_POPULATED)
+    FetchContent_Populate(cgal)
+  endif()
+  
+  # create a header-only target for CGAL
+  if(NOT TARGET CGAL::CGAL)
+    add_library(CGAL::CGAL INTERFACE IMPORTED)
+    target_include_directories(CGAL::CGAL INTERFACE "$<BUILD_INTERFACE:${cgal_SOURCE_DIR}/include>")
+    # CGAL needs GMP/MPFR. In dockcross they are usually in /usr/lib or can be disabled/mocked if strictly header-only
+    # For now, let's assume the container has libgmp/libmpfr, or we might need to fetch those too.
+  endif()
+endif()
+
 if(POLICY CMP0167)
   cmake_policy(POP)
 endif()
@@ -79,7 +136,7 @@ target_include_directories(arcgen
 
 target_include_directories(arcgen SYSTEM
   INTERFACE
-    ${Boost_INCLUDE_DIRS}
+    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
 )
 
 # Link interface deps so consumers link what they need
@@ -229,6 +286,9 @@ if(AG_BUILD_TESTS)
     )
     set_source_files_properties(${BOOST_GEOMETRY_TESTS} PROPERTIES 
         COMPILE_OPTIONS "-Wno-maybe-uninitialized")
+
+    # Also suppress -Wpsabi to avoid "parameter passing for argument..." notes on ARM.
+    target_compile_options(ag_tests PRIVATE -Wno-psabi)
 
     else() # Clang / AppleClang and others
       target_compile_options(ag_tests PRIVATE
