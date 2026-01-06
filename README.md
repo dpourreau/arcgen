@@ -13,6 +13,12 @@ ArcGen is a **header-only** C++23 library for car-like path planning with bounde
 
 ArcGen is designed to be easy to drop into an existing CMake project via `find_package(arcgen)` and link as `arcgen::arcgen`.
 
+## Demo
+
+<video src="docs/assets/demo.mp4" controls="controls" style="max-width: 100%;">
+  Your browser does not support the video tag.
+</video>
+
 ## Features
 
 * **Header-only API**: include `<arcgen.hpp>` and go.
