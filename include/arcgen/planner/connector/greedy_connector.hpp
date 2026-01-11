@@ -609,87 +609,126 @@ namespace arcgen::planner::connector
          * @param getEffectiveStart Callback to resolve the effective start index of a segment (handling partial consumption).
          * @return                  A `ShortcutResult` if a beneficial shortcut is found, otherwise `std::nullopt`.
          */
-        template <typename StartCallback>
-        [[nodiscard]] std::optional<ShortcutResult>
-        findShortcut (const std::vector<arcgen::core::State> &path, const std::vector<int64_t> &ids, const std::vector<std::size_t> &indices, std::size_t i,
-                      std::size_t currentSegIdx, const std::vector<SegmentView> &segments, const Evaluator<Steering> &evaluator, const StartCallback &getEffectiveStart) const
+        /**
+         * @brief Context struct for immutable data shared across stitching operations.
+         *
+         * Reduces parameter counts for internal helper methods.
+         */
+        struct StitchContext
         {
-            std::size_t currPathIdx = indices[i];
-            const auto &curr = path[currPathIdx];
+            const std::vector<arcgen::core::State> &path;
+            const std::vector<int64_t> &ids;
+            const std::vector<std::size_t> &indices;
+            const std::vector<SegmentView> &segments;
+            const Evaluator<Steering> &evaluator;
+        };
+
+        /**
+         * @brief Computes the score for a potential shortcut between two points.
+         *
+         * Evaluates the cost of retaining parts of the existing path versus taking a direct
+         * connection (shortcut).
+         *
+         * @param ctx             Immutable context data.
+         * @param i               Start index in the resampled path.
+         * @param targetPathIdx   Target index in the original path.
+         * @param effectiveStartA Effective start index of the current segment.
+         * @return                A `ShortcutResult` if the shortcut is valid, otherwise `std::nullopt`.
+         */
+        std::optional<ShortcutResult> computeShortcutScore (const StitchContext &ctx, std::size_t i, std::size_t targetPathIdx, std::size_t effectiveStartA) const
+        {
+            const auto &curr = ctx.path[ctx.indices[i]];
+            const auto &cand = ctx.path[targetPathIdx];
+
+            // Calculate costs of retained segments purely by evaluation
+            double costRetainA = 0.0;
+            bool isStartA = (ctx.indices[i] == effectiveStartA);
+            if (!isStartA)
+            {
+                costRetainA = ctx.evaluator.evaluateCost (slicePath (ctx.path, effectiveStartA, ctx.indices[i]));
+            }
+
+            // Find true end of segment B in path
+            std::size_t endB = targetPathIdx;
+            while (endB + 1 < ctx.path.size () && ctx.ids[endB + 1] == ctx.ids[targetPathIdx])
+                endB++;
+
+            double costRetainB = 0.0;
+            bool isEndB = (targetPathIdx == endB);
+            if (!isEndB)
+            {
+                costRetainB = ctx.evaluator.evaluateCost (slicePath (ctx.path, targetPathIdx, endB));
+            }
+
+            // Compute shortcut cost
+            auto best = ctx.evaluator.bestStatesBetween (curr, cand);
+            if (!best || best->first.empty ())
+                return std::nullopt;
+
+            const double shortcutCost = best->second;
+            return ShortcutResult{targetPathIdx,
+                                  0.0, // Calculated by caller
+                                  -1,  // Assigned by caller
+                                  std::move (best->first),
+                                  costRetainA,
+                                  costRetainB,
+                                  shortcutCost,
+                                  isStartA,
+                                  isEndB};
+        }
+
+        /**
+         * @brief Attempts to find a beneficial shortcut starting from the current point `i`.
+         *
+         * Searches forward in the resampled path using `lookaheadMatches_` to check if a direct
+         * connection exists between the current state and the candidate state.
+         *
+         * @param ctx               Immutable context data (path, ids, indices, segments, evaluator).
+         * @param i                 Current index in `indices` (start of shortcut).
+         * @param currentSegIdx     Index of the segment containing `indices[i]`.
+         * @param getEffectiveStart Callback to resolve the effective start index of a segment.
+         * @return                  A `ShortcutResult` if a beneficial shortcut is found, otherwise `std::nullopt`.
+         */
+        template <typename StartCallback>
+        [[nodiscard]] std::optional<ShortcutResult> findShortcut (const StitchContext &ctx, std::size_t i, std::size_t currentSegIdx, const StartCallback &getEffectiveStart) const
+        {
             std::optional<ShortcutResult> bestRes;
 
             for (unsigned int offset = lookaheadMatches_; offset > 0; --offset)
             {
                 std::size_t targetSegIdx = currentSegIdx + offset;
-                if (targetSegIdx >= segments.size ())
+                if (targetSegIdx >= ctx.segments.size ())
                     continue;
 
-                const auto &targetSeg = segments[targetSegIdx];
+                // Compute original cost to compare against using cached segment costs
+                double costTotalA = ctx.segments[currentSegIdx].cost;
+                double costTotalB = ctx.segments[targetSegIdx].cost;
+                double costInter = 0.0;
+                for (std::size_t s = currentSegIdx + 1; s < targetSegIdx; ++s)
+                    costInter += ctx.segments[s].cost;
+
+                double oldTotalLocal = costTotalA + costInter + costTotalB;
+                const auto &targetSeg = ctx.segments[targetSegIdx];
 
                 for (std::size_t k = targetSeg.endI; k >= targetSeg.startI; --k)
                 {
                     if (k <= i + 1)
                         break;
 
-                    std::size_t targetPathIdx = indices[k];
-                    const auto &cand = path[targetPathIdx];
+                    std::size_t targetPathIdx = ctx.indices[k];
+                    std::size_t effectiveStartA = getEffectiveStart (ctx.ids[ctx.indices[i]], ctx.indices[ctx.segments[currentSegIdx].startI]);
 
-                    // Determine constraint boundaries
-                    std::size_t effectiveStartA = getEffectiveStart (ids[currPathIdx], indices[segments[currentSegIdx].startI]);
+                    auto res = computeShortcutScore (ctx, i, targetPathIdx, effectiveStartA);
+                    if (!res)
+                        continue;
 
-                    // Find true end of segment B in path
-                    std::size_t endB = targetPathIdx;
-                    while (endB + 1 < path.size () && ids[endB + 1] == ids[targetPathIdx])
-                        endB++;
+                    double newTotalLocal = res->costRetainA + res->costShortcut + res->costRetainB;
+                    if (newTotalLocal >= oldTotalLocal - costImprovementTol_)
+                        continue;
 
-                    bool isStartA = (currPathIdx == effectiveStartA);
-                    bool isEndB = (targetPathIdx == endB);
-
-                    // Calculate costs of retained segments purely by evaluation (no solver/collision check)
-                    double costRetainA = 0.0;
-                    if (!isStartA)
-                    {
-                        costRetainA = evaluator.evaluateCost (slicePath (path, effectiveStartA, currPathIdx));
-                    }
-
-                    double costRetainB = 0.0;
-                    if (!isEndB)
-                    {
-                        costRetainB = evaluator.evaluateCost (slicePath (path, targetPathIdx, endB));
-                    }
-
-                    // Compute original cost to compare against using cached segment costs
-                    double costTotalA = segments[currentSegIdx].cost;
-                    double costTotalB = segments[targetSegIdx].cost;
-                    double costInter = 0.0;
-                    for (std::size_t s = currentSegIdx + 1; s < targetSegIdx; ++s)
-                    {
-                        costInter += segments[s].cost;
-                    }
-
-                    double oldTotalLocal = costTotalA + costInter + costTotalB;
-
-                    // Compute shortcut cost
-                    auto best = evaluator.bestStatesBetween (curr, cand);
-                    if (best && !best->first.empty ())
-                    {
-                        const double shortcutCost = best->second;
-                        double newTotalLocal = costRetainA + shortcutCost + costRetainB;
-
-                        if (newTotalLocal < oldTotalLocal - costImprovementTol_)
-                        {
-                            bestRes = ShortcutResult{targetPathIdx,
-                                                     newTotalLocal, // Storing local total isn't used directly but good for debug
-                                                     -1,            // Will assign ID later
-                                                     std::move (best->first),
-                                                     costRetainA,
-                                                     costRetainB,
-                                                     shortcutCost,
-                                                     isStartA,
-                                                     isEndB};
-                            return bestRes;
-                        }
-                    }
+                    res->totalCost = newTotalLocal;
+                    bestRes = std::move (res);
+                    return bestRes; // Greedy return found
                 }
             }
 
@@ -729,17 +768,18 @@ namespace arcgen::planner::connector
          * original segments to retain and where to insert the new shortcut.
          *
          * @param session       The current stitching session state.
+         * @param ctx           Immutable context data.
          * @param res           The result of the found shortcut containing path and cost details.
          * @param shortcutId    The unique ID assigned to this new shortcut segment.
-         * @param currentPathId The steering ID of the current (outgoing) segment.
-         * @param targetPathId  The steering ID of the target (incoming) segment.
          * @param i             The current index in the resampled points list (start of shortcut).
          * @param iOut          [Output] Updated index pointer to skip processed points.
-         * @param indices       The list of resampled indices.
          */
-        void applyShortcut (StitchSession &session, ShortcutResult &res, int64_t shortcutId, int64_t currentPathId, int64_t targetPathId, std::size_t i, std::size_t &iOut,
-                            const std::vector<std::size_t> &indices) const
+        void applyShortcut (StitchSession &session, const StitchContext &ctx, ShortcutResult &res, int64_t shortcutId, std::size_t i, std::size_t &iOut) const
         {
+            std::size_t currPathIdx = ctx.indices[i];
+            int64_t currentPathId = ctx.ids[currPathIdx];
+            int64_t targetPathId = ctx.ids[res.targetPathIdx];
+
             // A) Fix A Cost (Current Segment)
             if (!res.isStartA)
             {
@@ -788,9 +828,9 @@ namespace arcgen::planner::connector
             session.anyShortcut = true;
 
             // Advance 'i'
-            for (size_t k = i + 1; k < indices.size (); ++k)
+            for (size_t k = i + 1; k < ctx.indices.size (); ++k)
             {
-                if (indices[k] == res.targetPathIdx)
+                if (ctx.indices[k] == res.targetPathIdx)
                 {
                     session.connections.emplace_back (i, k);
                     iOut = k;
@@ -859,6 +899,7 @@ namespace arcgen::planner::connector
 
             // Pre-calculate segments from indices for optimized navigation
             std::vector<SegmentView> segments = buildSegments (indices, ids, costMap);
+            StitchContext ctx{path, ids, indices, segments, evaluator};
 
             StitchSession session;
             session.finalPath.reserve (path.size ());
@@ -893,12 +934,13 @@ namespace arcgen::planner::connector
 
                 if (canShortcut)
                 {
-                    shortcut = findShortcut (path, ids, indices, i, currentSegIdx, segments, evaluator, getEffectiveStart);
+                    shortcut = findShortcut (ctx, i, currentSegIdx, getEffectiveStart);
                 }
 
                 if (shortcut)
                 {
-                    applyShortcut (session, *shortcut, nextSteeringId_++, ids[currPathIdx], ids[shortcut->targetPathIdx], i, i, indices);
+                    int64_t shortcutId = nextSteeringId_++;
+                    applyShortcut (session, ctx, *shortcut, shortcutId, i, i);
                 }
                 else
                 {

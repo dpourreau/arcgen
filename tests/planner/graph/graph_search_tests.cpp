@@ -91,11 +91,9 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 
     struct SharedData
     {
-        Workspace W;
-        arcgen::planner::geometry::StraightSkeleton skel;
-        Graph G;
-
-        SharedData () : W (*arcgen::utils::mazeWorkspace ()), G (skel.generate (W)) {}
+        Workspace W{*arcgen::utils::mazeWorkspace ()};
+        [[no_unique_address]] arcgen::planner::geometry::StraightSkeleton skel;
+        Graph G{skel.generate (W)};
     };
 
     static SharedData &getShared ()
