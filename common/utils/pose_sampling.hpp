@@ -13,7 +13,6 @@
 
 namespace arcgen::utils
 {
-    using namespace arcgen::planner::geometry;
     using arcgen::core::PI;
 
     namespace bg = boost::geometry;
@@ -34,9 +33,9 @@ namespace arcgen::utils
      * @param segments  Number of points along the semicircle (≥ 2).
      * @return CCW, closed polygon approximating the half-disk.
      */
-    inline Polygon orientedHalfDisk (double cx, double cy, double heading, double radius, bool forward, int segments = 24)
+    inline arcgen::planner::geometry::Polygon orientedHalfDisk (double cx, double cy, double heading, double radius, bool forward, int segments = 24)
     {
-        Polygon poly;
+        arcgen::planner::geometry::Polygon poly;
         if (segments < 2)
             segments = 2;
 
@@ -71,11 +70,11 @@ namespace arcgen::utils
      * @param forward  Which cap to test (true=forward, false=backward).
      * @return True if the half-disk area is covered by the valid region.
      */
-    inline bool halfDiskInside (const Workspace &W, double cx, double cy, double heading, double radius, bool forward)
+    inline bool halfDiskInside (const arcgen::planner::geometry::Workspace &W, double cx, double cy, double heading, double radius, bool forward)
     {
         // Slight shrink to avoid grazing numerical issues on borders.
         const double r = std::max (0.0, radius - 1e-9);
-        Polygon hd = orientedHalfDisk (cx, cy, heading, r, forward, 28);
+        arcgen::planner::geometry::Polygon hd = orientedHalfDisk (cx, cy, heading, r, forward, 28);
         return W.coveredBy (hd);
     }
 } // namespace arcgen::utils

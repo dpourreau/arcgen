@@ -45,6 +45,10 @@ namespace arcgen::planner::geometry
       protected:
         /// @brief Defaulted constructor.
         SkeletonBase () = default;
+        SkeletonBase (const SkeletonBase &) = default;
+        SkeletonBase (SkeletonBase &&) = default;
+        SkeletonBase &operator= (const SkeletonBase &) = default;
+        SkeletonBase &operator= (SkeletonBase &&) = default;
         /// @brief Defaulted destructor (protected to prevent slicing).
         ~SkeletonBase () = default;
     };
