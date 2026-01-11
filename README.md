@@ -1,4 +1,5 @@
 # ArcGen
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dpourreau_arcgen&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dpourreau_arcgen)
 
 ArcGen is a **header-only** C++23 library for car-like path planning with bounded curvature. It gives you:
 
