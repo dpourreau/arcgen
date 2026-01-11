@@ -103,33 +103,7 @@ namespace arcgen::planner::connector
             if (currentResult.path.empty ())
                 return {};
 
-            if constexpr (!std::is_void_v<DebugInfo>)
-            {
-                if (dbg)
-                {
-                    // Resampled Points: "input shortest path... after assignHeadings" -> waypoints
-                    // Fixed Anchors: "All points... selected for stitching" -> derived from connections
-                    std::vector<std::size_t> fixedIdx;
-                    fixedIdx.reserve (currentResult.connections.size () * 2);
-                    for (auto [u, v] : currentResult.connections)
-                    {
-                        fixedIdx.push_back (u);
-                        fixedIdx.push_back (v);
-                    }
-                    std::sort (fixedIdx.begin (), fixedIdx.end ());
-                    fixedIdx.erase (std::unique (fixedIdx.begin (), fixedIdx.end ()), fixedIdx.end ());
-
-                    std::vector<arcgen::core::State> anchors;
-                    anchors.reserve (fixedIdx.size ());
-                    for (auto idx : fixedIdx)
-                    {
-                        if (idx < waypoints.size ())
-                            anchors.push_back (waypoints[idx]);
-                    }
-
-                    recordStep (dbg, "Initial Stitch", currentResult.path, waypoints, anchors, evaluator, std::chrono::duration<double> (t1 - t0).count ());
-                }
-            }
+            logInitialStitch (dbg, currentResult, waypoints, evaluator, std::chrono::duration<double> (t1 - t0).count ());
 
             // Smoothing loop
             double currentScore = currentResult.totalScore;
@@ -147,16 +121,7 @@ namespace arcgen::planner::connector
                 auto indices = resampleIndices (currentPath, currentIds);
 
                 // Track anchors (states corresponding to indices) for visualization
-                std::vector<arcgen::core::State> currentAnchors;
-                if constexpr (!std::is_void_v<DebugInfo>)
-                {
-                    if (dbg)
-                    {
-                        currentAnchors.reserve (indices.size ());
-                        for (auto idx : indices)
-                            currentAnchors.push_back (currentPath[idx]);
-                    }
-                }
+                // Track anchors (states corresponding to indices) for visualization (unused block removed)
 
                 auto newResult = stitchLocal (currentPath, currentIds, indices, evaluator, currentCosts, nullptr);
                 auto tIter1 = std::chrono::steady_clock::now ();
@@ -170,36 +135,7 @@ namespace arcgen::planner::connector
 
                 if (newResult.totalScore < currentScore - costImprovementTol_)
                 {
-                    if constexpr (!std::is_void_v<DebugInfo>)
-                    {
-                        if (dbg)
-                        {
-                            // Resampled Points: "All other points in the smoothing set (the indices output)"
-                            std::vector<arcgen::core::State> resampled;
-                            resampled.reserve (indices.size ());
-                            for (auto idx : indices)
-                                resampled.push_back (currentPath[idx]);
-
-                            // Fixed Anchors: "start, end, and all joint points used"
-                            std::vector<arcgen::core::State> anchors;
-                            if (!newResult.path.empty ())
-                            {
-                                anchors.push_back (newResult.path.front ());
-                                for (size_t i = 0; i + 1 < newResult.path.size (); ++i)
-                                {
-                                    if (newResult.segmentIds[i] != newResult.segmentIds[i + 1])
-                                    {
-                                        anchors.push_back (newResult.path[i]);
-                                        anchors.push_back (newResult.path[i + 1]);
-                                    }
-                                }
-                                anchors.push_back (newResult.path.back ());
-                            }
-
-                            recordStep (dbg, "Smoothing Iteration " + std::to_string (iter + 1), newResult.path, resampled, anchors, evaluator,
-                                        std::chrono::duration<double> (tIter1 - tIter0).count ());
-                        }
-                    }
+                    logSmoothingStep (dbg, iter, newResult, indices, currentPath, evaluator, std::chrono::duration<double> (tIter1 - tIter0).count ());
 
                     currentScore = newResult.totalScore;
                     currentPath = std::move (newResult.path);
@@ -241,6 +177,42 @@ namespace arcgen::planner::connector
         /// @param fixedAnchors    Key waypoints that were fixed during this step.
         /// @param evaluator       The evaluator used to score the path.
         /// @param computationTime Time taken for this step in seconds.
+        template <typename StepT> void computeStepStats (StepT &step, const Evaluator<Steering> &evaluator) const
+        {
+            const auto *cset = evaluator.getConstraints ();
+            if (!cset || step.path.empty ())
+                return;
+
+            using PathT = typename Steering::PathType;
+            PathT p;
+            p.states = step.path;
+            // Empty callback is safe here as we only score, not generate
+            typename Evaluator<Steering>::EvalContext ctx{step.path.front (), step.path.back (), [] (PathT &) { /* No-op */ }};
+            step.stats.totalCost = cset->score (p, ctx);
+
+            for (const auto &[c, w] : cset->soft)
+            {
+                double cost = c->cost (p, ctx);
+                if (std::isfinite (cost))
+                {
+                    step.stats.softConstraints[c->name ()] = cost * w;
+                }
+            }
+        }
+
+        /// @brief Helper to record a debug step in the history.
+        /// @details
+        /// Populates a `DebugInfo::Step` with path data, resampling visualization points,
+        /// fixed anchors (joints/endpoints), and detailed cost breakdowns. This method
+        /// calculates soft constraint costs on the fly if needed for reporting.
+        ///
+        /// @param dbg             Pointer to the debug info structure (can be null).
+        /// @param name            Name of the step (e.g., "Initial Stitch", "Smoothing Iteration 1").
+        /// @param path            The dense sequence of states for this step.
+        /// @param resampledPoints A set of points derived from resampling (for visualization).
+        /// @param fixedAnchors    Key waypoints that were fixed during this step.
+        /// @param evaluator       The evaluator used to score the path.
+        /// @param computationTime Time taken for this step in seconds.
         void recordStep (DebugInfo *dbg, const std::string &name, const std::vector<arcgen::core::State> &path, const std::vector<arcgen::core::State> &resampledPoints,
                          const std::vector<arcgen::core::State> &fixedAnchors, const Evaluator<Steering> &evaluator, double computationTime) const
         {
@@ -255,24 +227,7 @@ namespace arcgen::planner::connector
                 step.resampledPoints = resampledPoints;
                 step.fixedAnchors = fixedAnchors;
 
-                // Compute Stats
-                const auto *cset = evaluator.getConstraints ();
-                if (cset && !step.path.empty ())
-                {
-                    using PathT = typename Steering::PathType;
-                    PathT p;
-                    p.states = step.path;
-                    typename Evaluator<Steering>::EvalContext ctx{step.path.front (), step.path.back (), [] (PathT &) {}};
-                    step.stats.totalCost = cset->score (p, ctx);
-                    for (const auto &[c, w] : cset->soft)
-                    {
-                        double cost = c->cost (p, ctx);
-                        if (std::isfinite (cost))
-                        {
-                            step.stats.softConstraints[c->name ()] = cost * w;
-                        }
-                    }
-                }
+                computeStepStats (step, evaluator);
 
                 step.computationTime = computationTime;
                 dbg->history.push_back (std::move (step));
@@ -370,6 +325,158 @@ namespace arcgen::planner::connector
         };
 
         /**
+         * @brief Logs the initial stitch step to the debug info.
+         */
+        void logInitialStitch (DebugInfo *dbg, const StitchResult &result, const std::vector<arcgen::core::State> &waypoints, const Evaluator<Steering> &evaluator,
+                               double duration) const
+        {
+            if constexpr (!std::is_void_v<DebugInfo>)
+            {
+                if (dbg)
+                {
+                    // Resampled Points: "input shortest path... after assignHeadings" -> waypoints
+                    // Fixed Anchors: "All points... selected for stitching" -> derived from connections
+                    std::vector<std::size_t> fixedIdx;
+                    fixedIdx.reserve (result.connections.size () * 2);
+                    for (auto [u, v] : result.connections)
+                    {
+                        fixedIdx.push_back (u);
+                        fixedIdx.push_back (v);
+                    }
+                    std::sort (fixedIdx.begin (), fixedIdx.end ());
+                    fixedIdx.erase (std::unique (fixedIdx.begin (), fixedIdx.end ()), fixedIdx.end ());
+
+                    std::vector<arcgen::core::State> anchors;
+                    anchors.reserve (fixedIdx.size ());
+                    for (auto idx : fixedIdx)
+                    {
+                        if (idx < waypoints.size ())
+                            anchors.push_back (waypoints[idx]);
+                    }
+
+                    recordStep (dbg, "Initial Stitch", result.path, waypoints, anchors, evaluator, duration);
+                }
+            }
+        }
+
+        /**
+         * @brief Logs a smoothing iteration step to the debug info.
+         */
+        void logSmoothingStep (DebugInfo *dbg, unsigned int iter, const StitchResult &newResult, const std::vector<std::size_t> &indices,
+                               const std::vector<arcgen::core::State> &currentPath, const Evaluator<Steering> &evaluator, double duration) const
+        {
+            if constexpr (!std::is_void_v<DebugInfo>)
+            {
+                if (dbg)
+                {
+                    // Resampled Points: "All other points in the smoothing set (the indices output)"
+                    std::vector<arcgen::core::State> resampled;
+                    resampled.reserve (indices.size ());
+                    for (auto idx : indices)
+                        resampled.push_back (currentPath[idx]);
+
+                    // Fixed Anchors: "start, end, and all joint points used"
+                    std::vector<arcgen::core::State> anchors;
+                    if (!newResult.path.empty ())
+                    {
+                        anchors.push_back (newResult.path.front ());
+                        for (size_t i = 0; i + 1 < newResult.path.size (); ++i)
+                        {
+                            if (newResult.segmentIds[i] != newResult.segmentIds[i + 1])
+                            {
+                                anchors.push_back (newResult.path[i]);
+                                anchors.push_back (newResult.path[i + 1]);
+                            }
+                        }
+                        anchors.push_back (newResult.path.back ());
+                    }
+
+                    recordStep (dbg, "Smoothing Iteration " + std::to_string (iter + 1), newResult.path, resampled, anchors, evaluator, duration);
+                }
+            }
+        }
+
+        bool dfsConnect (std::size_t curr, const std::vector<arcgen::core::State> &nodes, const Evaluator<Steering> &evaluator, std::vector<bool> &failedConnections,
+                         std::vector<bool> &deadNodes, std::vector<std::vector<arcgen::core::State>> &pathStack, std::vector<double> &scores,
+                         std::vector<std::pair<std::size_t, std::size_t>> &stitched) const
+        {
+            const std::size_t count = nodes.size ();
+            if (curr == count - 1)
+                return true;
+
+            if (deadNodes[curr])
+                return false;
+
+            // Try the farthest reachable node first, walking backward.
+            for (std::size_t next = curr == 0 ? count - 2 : count - 1; next > curr; --next)
+            {
+                if (failedConnections[curr * count + next] || deadNodes[next])
+                    continue;
+
+                if (auto best = evaluator.bestStatesBetween (nodes[curr], nodes[next]))
+                {
+                    pathStack.push_back (std::move (best->first));
+                    scores.push_back (best->second);
+                    stitched.emplace_back (curr, next);
+
+                    if (dfsConnect (next, nodes, evaluator, failedConnections, deadNodes, pathStack, scores, stitched))
+                        return true;
+
+                    // Backtrack
+                    pathStack.pop_back ();
+                    scores.pop_back ();
+                    stitched.pop_back ();
+                }
+                else
+                {
+                    failedConnections[curr * count + next] = true;
+                }
+            }
+
+            deadNodes[curr] = true;
+            return false;
+        }
+
+        StitchResult buildStitchResult (std::vector<std::vector<arcgen::core::State>> &pathStack, const std::vector<double> &scores,
+                                        const std::vector<std::pair<std::size_t, std::size_t>> &stitched) const
+        {
+            std::vector<arcgen::core::State> out;
+            std::vector<int64_t> ids;
+            std::unordered_map<int64_t, double> costs;
+            double totalScore = 0.0;
+
+            for (size_t i = 0; i < pathStack.size (); ++i)
+            {
+                auto &states = pathStack[i];
+                double s = scores[i];
+                int64_t newId = nextSteeringId_++;
+
+                if (!out.empty () && !states.empty ())
+                {
+                    // Avoid duplicating junction point
+                    for (size_t k = 1; k < states.size (); ++k)
+                    {
+                        out.push_back (std::move (states[k]));
+                        ids.push_back (newId);
+                    }
+                }
+                else
+                {
+                    for (auto &state : states)
+                    {
+                        out.push_back (std::move (state));
+                        ids.push_back (newId);
+                    }
+                }
+
+                costs[newId] = s;
+                totalScore += s;
+            }
+
+            return {out, ids, totalScore, costs, stitched};
+        }
+
+        /**
          * @brief Stitches waypoints together using the evaluator to find the farthest valid connections.
          *
          * Implements a greedy "farthest-reachable" strategy via Depth-First Search (DFS).
@@ -391,91 +498,15 @@ namespace arcgen::planner::connector
 
             std::vector<std::vector<arcgen::core::State>> pathStack;
             std::vector<double> scores;
-            // Reserve to make sure we don't reallocate too often
             pathStack.reserve (count);
             scores.reserve (count);
-
             std::vector<std::pair<std::size_t, std::size_t>> stitched;
-
-            // Tracks connections that failed to avoid re-evaluating them.
             std::vector<bool> failedConnections (count * count, false);
-            // Tracks nodes that cannot reach the goal.
             std::vector<bool> deadNodes (count, false);
 
-            auto dfs = [&] (auto &&self, std::size_t curr) -> bool
+            if (dfsConnect (0, nodes, evaluator, failedConnections, deadNodes, pathStack, scores, stitched))
             {
-                if (curr == count - 1)
-                    return true;
-
-                if (deadNodes[curr])
-                    return false;
-
-                // Try the farthest reachable node first, walking backward.
-                for (std::size_t next = curr == 0 ? count - 2 : count - 1; next > curr; --next)
-                {
-                    if (failedConnections[curr * count + next] || deadNodes[next])
-                        continue;
-
-                    if (auto best = evaluator.bestStatesBetween (nodes[curr], nodes[next]))
-                    {
-                        pathStack.push_back (std::move (best->first));
-                        scores.push_back (best->second);
-                        stitched.emplace_back (curr, next);
-
-                        if (self (self, next))
-                            return true;
-
-                        // Backtrack
-                        pathStack.pop_back ();
-                        scores.pop_back ();
-                        stitched.pop_back ();
-                    }
-                    else
-                    {
-                        failedConnections[curr * count + next] = true;
-                    }
-                }
-
-                deadNodes[curr] = true;
-                return false;
-            };
-
-            if (dfs (dfs, 0))
-            {
-                std::vector<arcgen::core::State> out;
-                std::vector<int64_t> ids;
-                std::unordered_map<int64_t, double> costs;
-                double totalScore = 0.0;
-
-                for (size_t i = 0; i < pathStack.size (); ++i)
-                {
-                    auto &states = pathStack[i];
-                    double s = scores[i];
-                    int64_t newId = nextSteeringId_++;
-
-                    if (!out.empty () && !states.empty ())
-                    {
-                        // Avoid duplicating junction point
-                        for (size_t k = 1; k < states.size (); ++k)
-                        {
-                            out.push_back (std::move (states[k]));
-                            ids.push_back (newId);
-                        }
-                    }
-                    else
-                    {
-                        for (auto state : states)
-                        {
-                            out.push_back (std::move (state));
-                            ids.push_back (newId);
-                        }
-                    }
-
-                    costs[newId] = s;
-                    totalScore += s;
-                }
-
-                return {out, ids, totalScore, costs, stitched};
+                return buildStitchResult (pathStack, scores, stitched);
             }
 
             return {{}, {}, std::numeric_limits<double>::infinity (), {}, {}};

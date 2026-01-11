@@ -46,6 +46,11 @@ namespace arcgen::planner::constraints
      */
     template <std::size_t N> struct HardConstraint
     {
+        HardConstraint () = default;
+        HardConstraint (const HardConstraint &) = default;
+        HardConstraint (HardConstraint &&) = default;
+        HardConstraint &operator= (const HardConstraint &) = default;
+        HardConstraint &operator= (HardConstraint &&) = default;
         virtual ~HardConstraint () = default;
 
         /**
@@ -63,6 +68,11 @@ namespace arcgen::planner::constraints
      */
     template <std::size_t N> struct SoftConstraint
     {
+        SoftConstraint () = default;
+        SoftConstraint (const SoftConstraint &) = default;
+        SoftConstraint (SoftConstraint &&) = default;
+        SoftConstraint &operator= (const SoftConstraint &) = default;
+        SoftConstraint &operator= (SoftConstraint &&) = default;
         virtual ~SoftConstraint () = default;
 
         /**
