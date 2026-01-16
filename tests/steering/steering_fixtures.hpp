@@ -46,8 +46,6 @@ template <> struct GenName<ReedsShepp>
 };
 
 /* ───────── utilities ───────── */
-namespace
-{
     [[nodiscard]] inline double euclidean (const State &a, const State &b) noexcept
     {
         const double dx = a.x - b.x, dy = a.y - b.y;
@@ -62,7 +60,6 @@ namespace
             L += euclidean (pts[i - 1], pts[i]);
         return L;
     }
-} // namespace
 
 /**
  * @brief Typed fixture for steering generators (property + timing).
@@ -71,7 +68,7 @@ namespace
 template <class Generator> class SteeringFixture : public ::testing::Test
 {
   protected:
-    SteeringFixture () : gen_{Generator{R_MIN, STEP}}, rng_ (42), pos_ (-10.0, 10.0), ang_ (0.0, arcgen::core::two_pi) {}
+    SteeringFixture () = default;
 
     void checkPath (const State &start, const State &goal, const std::string &caseName)
     {
@@ -156,10 +153,10 @@ template <class Generator> class SteeringFixture : public ::testing::Test
     }
 
   private:
-    Generator gen_;
-    std::mt19937 rng_;
-    std::uniform_real_distribution<> pos_;
-    std::uniform_real_distribution<> ang_;
+    Generator gen_{R_MIN, STEP};
+    std::mt19937 rng_{42};
+    std::uniform_real_distribution<> pos_{-10.0, 10.0};
+    std::uniform_real_distribution<> ang_{0.0, arcgen::core::two_pi};
 };
 
 TYPED_TEST_SUITE_P (SteeringFixture);

@@ -91,9 +91,8 @@ namespace arcgen::planner::geometry
             BBox box{p, p};
 
             // Query polygons whose envelopes intersect the point's zero-area box.
-            for (const auto &entry : rtree_ | bgi::adaptors::queried (bgi::intersects (box)))
+            for (const auto &[entryBox, idx] : rtree_ | bgi::adaptors::queried (bgi::intersects (box)))
             {
-                const auto idx = entry.second;
                 if (bg::within (p, region_[idx]))
                     return true;
             }
@@ -132,9 +131,8 @@ namespace arcgen::planner::geometry
             BBox pb;
             bg::envelope (p, pb);
 
-            for (const auto &entry : rtree_ | bgi::adaptors::queried (bgi::intersects (pb)))
+            for (const auto &[box, idx] : rtree_ | bgi::adaptors::queried (bgi::intersects (pb)))
             {
-                const auto idx = entry.second;
                 if (bg::covered_by (p, region_[idx]))
                     return true; // fully inside this connected component
             }

@@ -34,10 +34,9 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <expected>
 
 namespace bg = boost::geometry;
-
-#include <expected>
 
 namespace arcgen::planner::engine
 {
@@ -57,6 +56,17 @@ namespace arcgen::planner::engine
         NoPathFound,   ///< No feasible path found
         InternalError, ///< Engine not initialized correctly
         Timeout        ///< (Reserved for future use)
+    };
+
+    /**
+     * @brief Transparent hasher for heterogeneous string lookups (std::string, std::string_view, const char*).
+     */
+    struct StringHash
+    {
+        using is_transparent = void;
+        [[nodiscard]] std::size_t operator() (std::string_view txt) const noexcept { return std::hash<std::string_view>{} (txt); }
+        [[nodiscard]] std::size_t operator() (const std::string &txt) const noexcept { return std::hash<std::string>{} (txt); }
+        [[nodiscard]] std::size_t operator() (const char *txt) const noexcept { return std::hash<std::string_view>{} (txt); }
     };
 
     /**
@@ -122,7 +132,7 @@ namespace arcgen::planner::engine
             struct TrajectoryStats
             {
                 double totalCost{0.0};
-                std::unordered_map<std::string, double> softConstraints;
+                std::unordered_map<std::string, double, StringHash, std::equal_to<>> softConstraints;
             };
 
             struct Step
@@ -139,7 +149,7 @@ namespace arcgen::planner::engine
             std::vector<Step> history;
 
             /// High-level component profiling (e.g., "Skeleton", "Graph Search").
-            std::unordered_map<std::string, double> componentTimes;
+            std::unordered_map<std::string, double, StringHash, std::equal_to<>> componentTimes;
 
             // Skeleton graph actually used (copied) when associated with a stage.
             std::optional<GlobalGraph> graph;
@@ -346,7 +356,7 @@ namespace arcgen::planner::engine
                 }
             }
 
-            auto tryGraph = [&] (const auto &graph, std::string stageName) -> std::optional<std::vector<State>>
+            auto tryGraph = [&] (const auto &graph, std::string_view stageName) -> std::optional<std::vector<State>>
             {
                 // Measure Graph Search Time
                 auto t0 = std::chrono::steady_clock::now ();
@@ -355,7 +365,7 @@ namespace arcgen::planner::engine
 
                 if (dbg)
                 {
-                    dbg->componentTimes["Graph Search (" + stageName + ")"] = std::chrono::duration<double> (t1 - t0).count ();
+                    dbg->componentTimes[std::string ("Graph Search (").append (stageName).append (")")] = std::chrono::duration<double> (t1 - t0).count ();
                 }
 
                 if (coarse.size () < 2)
@@ -372,7 +382,7 @@ namespace arcgen::planner::engine
 
                 if (dbg)
                 {
-                    dbg->componentTimes["Connection (" + stageName + ")"] = std::chrono::duration<double> (tConn1 - tConn0).count ();
+                    dbg->componentTimes[std::string ("Connection (").append (stageName).append (")")] = std::chrono::duration<double> (tConn1 - tConn0).count ();
                 }
 
                 if (path.empty ())
@@ -422,16 +432,13 @@ namespace arcgen::planner::engine
             }
 
             // ── Stage 3: global skeleton (lazy, cached; rebuild if needed).
-            if (!globalGraph_)
+            if (!globalGraph_ && skeleton_ && workspace_ && !workspace_->empty ())
             {
-                if (skeleton_ && workspace_ && !workspace_->empty ())
-                {
-                    auto t0 = std::chrono::steady_clock::now ();
-                    globalGraph_.emplace (skeleton_->generate (*workspace_));
-                    auto t1 = std::chrono::steady_clock::now ();
-                    if (dbg)
-                        dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
-                }
+                auto t0 = std::chrono::steady_clock::now ();
+                globalGraph_.emplace (skeleton_->generate (*workspace_));
+                auto t1 = std::chrono::steady_clock::now ();
+                if (dbg)
+                    dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
             }
 
             if (!globalGraph_)
