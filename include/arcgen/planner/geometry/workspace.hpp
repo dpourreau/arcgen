@@ -22,7 +22,7 @@
 
 namespace arcgen::planner::geometry
 {
-    using namespace arcgen::core;
+    using arcgen::core::State;
 
     namespace bg = boost::geometry;
     namespace bgi = boost::geometry::index;

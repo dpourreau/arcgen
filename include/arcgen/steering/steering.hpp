@@ -26,7 +26,11 @@
 
 namespace arcgen::steering
 {
-    using namespace arcgen::core;
+    using arcgen::core::Control;
+    using arcgen::core::State;
+    using arcgen::core::normalizeAngleSigned;
+    using arcgen::core::computeArcEndpoint;
+    using arcgen::core::computeLineEndpoint;
 
     template <class, std::size_t> class SteeringBase;
 

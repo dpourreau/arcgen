@@ -69,16 +69,10 @@ namespace arcgen::planner::engine
                 return 0.0;
 
             PathT p;
-            // PathT::states is typically std::optional<std::vector<State>>
-            // We cannot simply point it to a span without a copy if it expects a vector.
-            // Let's check PathT definition. Usually it's arcgen::steering::Path<N>.
-            // Path structure has: std::optional<std::vector<State>> states;
-            // So we MUST copy if we use the 'states' member.
-            // HOWEVER, we can optimize by constructing the vector from the span iterators directly.
+            // Deep copy required: PathT uses std::vector (owning), input is std::span (view).
+            p.states.emplace (path.begin (), path.end ());
 
-            p.states = std::vector<arcgen::core::State> (path.begin (), path.end ());
-
-            EvalContext ctx{path.front (), path.back (), [] (const PathT &) {}};
+            EvalContext ctx{path.front (), path.back (), [] (const PathT &) { /* no-op */ }};
             return constraints_->score (p, ctx);
         }
 
@@ -88,7 +82,7 @@ namespace arcgen::planner::engine
             if (!steering_ || !constraints_)
                 return std::nullopt;
 
-            EvalContext ctx{a, b, [&] (const PathT &p) { steering_->ensureStates (a, p); }};
+            EvalContext ctx{a, b, [this, &a] (const PathT &p) { steering_->ensureStates (a, p); }};
 
             std::optional<std::size_t> argmin;
             double bestScore = std::numeric_limits<double>::infinity ();
@@ -139,7 +133,7 @@ namespace arcgen::planner::engine
             }
 #endif
 
-            if (!argmin)
+            if (!argmin.has_value ())
                 return std::nullopt;
 
             steering_->ensureStates (a, cand[*argmin]); // ensure discretised states before returning

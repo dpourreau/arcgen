@@ -80,7 +80,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     {
         Graph G;
 
-        G = skel_.generate (W);
+        G = this->getSkel ().generate (W);
 
         bool ok = true;
         std::ostringstream why;
@@ -186,7 +186,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
                 continue;
 
             Graph G;
-            G = skel_.generate (localW);
+            G = this->getSkel ().generate (localW);
 
             bool ok = true;
             std::ostringstream why;
@@ -252,11 +252,11 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     std::mt19937 &rng () { return rng_; }
     const std::mt19937 &rng () const { return rng_; }
 
-  protected:
-    SkeletonT skel_;
-    std::mt19937 rng_;
+    SkeletonT &getSkel () { return skel_; }
 
   private:
+    SkeletonT skel_;
+    std::mt19937 rng_;
 };
 
 using TestedSkeletons = ::testing::Types<StraightSkeleton>;
@@ -291,7 +291,7 @@ TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
     {
         Polygon p;
         Workspace w (p);
-        auto g = this->skel_.generate (w);
+        auto g = this->getSkel ().generate (w);
         EXPECT_EQ (boost::num_vertices (g), 0);
         EXPECT_EQ (boost::num_edges (g), 0);
     }
@@ -303,7 +303,7 @@ TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
         bg::correct (poly);
         Workspace w (poly);
 
-        auto g = this->skel_.generate (w);
+        auto g = this->getSkel ().generate (w);
         EXPECT_EQ (boost::num_vertices (g), 1);
         EXPECT_EQ (boost::num_edges (g), 0);
     }
@@ -321,7 +321,7 @@ TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
         obstacles.push_back (bar);
 
         Workspace w (outer, obstacles);
-        auto g = this->skel_.generate (w);
+        auto g = this->getSkel ().generate (w);
         EXPECT_EQ (boost::num_vertices (g), 4);
         EXPECT_EQ (boost::num_edges (g), 2);
     }

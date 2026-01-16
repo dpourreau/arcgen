@@ -76,8 +76,8 @@ namespace arcgen::steering
             const double th = std::atan2 (dy, dx);
 
             const double d = std::hypot (dx, dy) * this->getKappa (); // scaled
-            const double a = normalizeAngle2Pi (s1.heading - th);
-            const double b = normalizeAngle2Pi (s2.heading - th);
+            const double a = arcgen::core::normalizeAngle2Pi (s1.heading - th);
+            const double b = arcgen::core::normalizeAngle2Pi (s2.heading - th);
 
             /* easy zero-distance special-case */
             if (d < arcgen::core::dubins_tol && std::fabs (a - b) < arcgen::core::dubins_tol)
@@ -145,12 +145,12 @@ namespace arcgen::steering
                                                                const double &sb) const noexcept
         {
             const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sa - sb));
-            if (tmp >= core::dubins_zero_tol)
+            if (tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double th = std::atan2 (cb - ca, d + sa - sb);
-                const double t = normalizeAngle2Pi (-a + th);
+                const double t = arcgen::core::normalizeAngle2Pi (-a + th);
                 const double p = std::sqrt (std::max (tmp, 0.0));
-                const double q = normalizeAngle2Pi (b - th);
+                const double q = arcgen::core::normalizeAngle2Pi (b - th);
                 return makePath (PATH_TYPES[0], t, p, q);
             }
             return std::nullopt;
@@ -163,9 +163,9 @@ namespace arcgen::steering
             if (tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double th = std::atan2 (ca - cb, d - sa + sb);
-                const double t = normalizeAngle2Pi (a - th);
+                const double t = arcgen::core::normalizeAngle2Pi (a - th);
                 const double p = std::sqrt (std::max (tmp, 0.0));
-                const double q = normalizeAngle2Pi (-b + th);
+                const double q = arcgen::core::normalizeAngle2Pi (-b + th);
                 return makePath (PATH_TYPES[1], t, p, q);
             }
             return std::nullopt;
@@ -179,8 +179,8 @@ namespace arcgen::steering
             {
                 const double p = std::sqrt (std::max (tmp, 0.0));
                 const double th = std::atan2 (ca + cb, d - sa - sb) - std::atan2 (2.0, p);
-                const double t = normalizeAngle2Pi (a - th);
-                const double q = normalizeAngle2Pi (b - th);
+                const double t = arcgen::core::normalizeAngle2Pi (a - th);
+                const double q = arcgen::core::normalizeAngle2Pi (b - th);
                 return makePath (PATH_TYPES[2], t, p, q);
             }
             return std::nullopt;
@@ -194,8 +194,8 @@ namespace arcgen::steering
             {
                 const double p = std::sqrt (std::max (tmp, 0.0));
                 const double th = std::atan2 (-ca - cb, d + sa + sb) - std::atan2 (-2.0, p);
-                const double t = normalizeAngle2Pi (-a + th);
-                const double q = normalizeAngle2Pi (-b + th);
+                const double t = arcgen::core::normalizeAngle2Pi (-a + th);
+                const double q = arcgen::core::normalizeAngle2Pi (-b + th);
                 return makePath (PATH_TYPES[3], t, p, q);
             }
             return std::nullopt;
@@ -209,8 +209,8 @@ namespace arcgen::steering
             {
                 const double p = 2. * std::numbers::pi - std::acos (tmp);
                 const double th = std::atan2 (ca - cb, d - sa + sb);
-                const double t = normalizeAngle2Pi (a - th + 0.5 * p);
-                const double q = normalizeAngle2Pi (a - b - t + p);
+                const double t = arcgen::core::normalizeAngle2Pi (a - th + 0.5 * p);
+                const double q = arcgen::core::normalizeAngle2Pi (a - b - t + p);
                 return makePath (PATH_TYPES[4], t, p, q);
             }
             return std::nullopt;
@@ -224,8 +224,8 @@ namespace arcgen::steering
             {
                 const double p = 2. * std::numbers::pi - std::acos (tmp);
                 const double th = std::atan2 (-ca + cb, d + sa - sb);
-                const double t = normalizeAngle2Pi (-a + th + 0.5 * p);
-                const double q = normalizeAngle2Pi (b - a - t + p);
+                const double t = arcgen::core::normalizeAngle2Pi (-a + th + 0.5 * p);
+                const double q = arcgen::core::normalizeAngle2Pi (b - a - t + p);
                 return makePath (PATH_TYPES[5], t, p, q);
             }
             return std::nullopt;

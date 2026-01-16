@@ -20,8 +20,10 @@
 #include <string>
 #include <vector>
 
-using namespace arcgen::core;
-using namespace arcgen::steering;
+using arcgen::core::State;
+using arcgen::core::DrivingDirection;
+using arcgen::steering::Dubins;
+using arcgen::steering::ReedsShepp;
 
 constexpr double R_MIN = 3.0;     ///< [m]
 constexpr double STEP = 0.30;     ///< [m]

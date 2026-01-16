@@ -41,9 +41,11 @@ namespace bg = boost::geometry;
 
 namespace arcgen::planner::engine
 {
-    using namespace arcgen::core;
-    using namespace arcgen::planner::geometry;
-    using namespace arcgen::planner::connector;
+    using arcgen::core::State;
+    using arcgen::planner::connector::GreedyConnector;
+    using arcgen::planner::geometry::Point;
+    using arcgen::planner::geometry::Polygon;
+    using arcgen::planner::geometry::Workspace;
 
     /**
      * @brief Error codes for the planning process.
@@ -330,14 +332,12 @@ namespace arcgen::planner::engine
                         step.stats.totalCost = best->second;
                         step.computationTime = std::chrono::duration<double> (t1 - t0).count ();
 
-                        if (const auto *cset = evaluator.getConstraints ())
+                        const auto *cset = evaluator.getConstraints ();
+                        if (cset && !cset->soft.empty ())
                         {
-                            if (!cset->soft.empty ())
-                            {
-                                // Recalculate breakdown if needed or assumption: single segment cost is simple.
-                                // NOTE: Detailed breakdown would require constraints->score to return breakdown.
-                                // For now, we can just manually score soft constraints if we want breakdown.
-                            }
+                            // Recalculate breakdown if needed or assumption: single segment cost is simple.
+                            // NOTE: Detailed breakdown would require constraints->score to return breakdown.
+                            // For now, we can just manually score soft constraints if we want breakdown.
                         }
                         dbg->history.push_back (std::move (step));
                         dbg->source = DebugInfo::Source::Direct;
@@ -346,7 +346,7 @@ namespace arcgen::planner::engine
                 }
             }
 
-            auto tryGraph = [&] (auto &&graph, std::string stageName) -> std::optional<std::vector<State>>
+            auto tryGraph = [&] (const auto &graph, std::string stageName) -> std::optional<std::vector<State>>
             {
                 // Measure Graph Search Time
                 auto t0 = std::chrono::steady_clock::now ();
