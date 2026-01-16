@@ -16,6 +16,7 @@
 #include <boost/geometry/index/adaptors/query.hpp>
 #include <boost/geometry/index/rtree.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -131,11 +132,9 @@ namespace arcgen::planner::geometry
             BBox pb;
             bg::envelope (p, pb);
 
-            for (const auto &[box, idx] : rtree_ | bgi::adaptors::queried (bgi::intersects (pb)))
-            {
-                if (bg::covered_by (p, region_[idx]))
-                    return true; // fully inside this connected component
-            }
+            auto query = rtree_ | bgi::adaptors::queried (bgi::intersects (pb));
+            return std::any_of (query.begin (), query.end (),
+                                [this, &p] (const auto &val) { return bg::covered_by (p, region_[val.second]); });
 
             // No candidate envelopes overlapped, or none fully covered the polygon
             return false;

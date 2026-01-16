@@ -342,8 +342,7 @@ namespace arcgen::planner::engine
                         step.stats.totalCost = best->second;
                         step.computationTime = std::chrono::duration<double> (t1 - t0).count ();
 
-                        const auto *cset = evaluator.getConstraints ();
-                        if (cset && !cset->soft.empty ())
+                        if (const auto *cset = evaluator.getConstraints (); cset && !cset->soft.empty ())
                         {
                             // Recalculate breakdown if needed or assumption: single segment cost is simple.
                             // NOTE: Detailed breakdown would require constraints->score to return breakdown.
@@ -356,49 +355,6 @@ namespace arcgen::planner::engine
                 }
             }
 
-            auto tryGraph = [&] (const auto &graph, std::string_view stageName) -> std::optional<std::vector<State>>
-            {
-                // Measure Graph Search Time
-                auto t0 = std::chrono::steady_clock::now ();
-                auto coarse = graphSearch_->search (graph, start, goal);
-                auto t1 = std::chrono::steady_clock::now ();
-
-                if (dbg)
-                {
-                    dbg->componentTimes[std::string ("Graph Search (").append (stageName).append (")")] = std::chrono::duration<double> (t1 - t0).count ();
-                }
-
-                if (coarse.size () < 2)
-                    return std::nullopt;
-
-                if (dbg)
-                {
-                    dbg->graph = graph; // copy for visualization
-                }
-
-                auto tConn0 = std::chrono::steady_clock::now ();
-                auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
-                auto tConn1 = std::chrono::steady_clock::now ();
-
-                if (dbg)
-                {
-                    dbg->componentTimes[std::string ("Connection (").append (stageName).append (")")] = std::chrono::duration<double> (tConn1 - tConn0).count ();
-                }
-
-                if (path.empty ())
-                    return std::nullopt;
-
-                if (dbg)
-                {
-                    if (stageName == "Local")
-                        dbg->source = DebugInfo::Source::Local;
-                    else if (stageName == "Global")
-                        dbg->source = DebugInfo::Source::Global;
-                }
-                return path;
-            };
-
-            // ── Stage 2: local skeleton (axis-aligned rectangle around start/goal + margin)
             if (enableLocalSearch_)
             {
                 const double margin = localBBMargin_;
@@ -426,7 +382,7 @@ namespace arcgen::planner::engine
                     if (dbg)
                         dbg->componentTimes["Skeleton Generation (Local)"] = std::chrono::duration<double> (t1 - t0).count ();
 
-                    if (auto path = tryGraph (localGraph, "Local"))
+                    if (auto path = planOnGraph (localGraph, "Local", start, goal, dbg, evaluator))
                         return *path;
                 }
             }
@@ -444,7 +400,7 @@ namespace arcgen::planner::engine
             if (!globalGraph_)
                 return std::unexpected (PlanningError::NoPathFound); // workspace empty or skeleton generation failed
 
-            if (auto path = tryGraph (*globalGraph_, "Global"))
+            if (auto path = planOnGraph (*globalGraph_, "Global", start, goal, dbg, evaluator))
                 return *path;
 
             return std::unexpected (PlanningError::NoPathFound);
@@ -460,6 +416,49 @@ namespace arcgen::planner::engine
         ConstraintSet constraints_;                ///< Active constraints (hard + soft).
         bool enableLocalSearch_;                   ///< Enable Stage 2 local search.
         double localBBMargin_;                     ///< Margin for local bounding box search.
+
+        [[nodiscard]] std::optional<std::vector<State>> planOnGraph (const GlobalGraph &graph, std::string_view stageName, const State &start, const State &goal, DebugInfo *dbg,
+                                                                     const Evaluator<Steering> &evaluator)
+        {
+            // Measure Graph Search Time
+            auto t0 = std::chrono::steady_clock::now ();
+            auto coarse = graphSearch_->search (graph, start, goal);
+            auto t1 = std::chrono::steady_clock::now ();
+
+            if (dbg)
+            {
+                dbg->componentTimes[std::string ("Graph Search (").append (stageName).append (")")] = std::chrono::duration<double> (t1 - t0).count ();
+            }
+
+            if (coarse.size () < 2)
+                return std::nullopt;
+
+            if (dbg)
+            {
+                dbg->graph = graph; // copy for visualization
+            }
+
+            auto tConn0 = std::chrono::steady_clock::now ();
+            auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
+            auto tConn1 = std::chrono::steady_clock::now ();
+
+            if (dbg)
+            {
+                dbg->componentTimes[std::string ("Connection (").append (stageName).append (")")] = std::chrono::duration<double> (tConn1 - tConn0).count ();
+            }
+
+            if (path.empty ())
+                return std::nullopt;
+
+            if (dbg)
+            {
+                if (stageName == "Local")
+                    dbg->source = DebugInfo::Source::Local;
+                else if (stageName == "Global")
+                    dbg->source = DebugInfo::Source::Global;
+            }
+            return path;
+        }
     };
 
 } // namespace arcgen::planner::engine

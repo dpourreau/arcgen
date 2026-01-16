@@ -419,7 +419,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
      * @brief Saves debug artifacts (SVGs) to the build directory.
      *
      */
-    void saveDebugArtifacts (const RenderContext &ctx)
+    void saveDebugArtifacts ([[maybe_unused]] const RenderContext &ctx) const
     {
 #ifdef AG_ENABLE_PLOTS
         int stepIdx = 0;
