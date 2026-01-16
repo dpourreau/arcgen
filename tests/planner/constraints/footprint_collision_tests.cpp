@@ -59,7 +59,7 @@ class FootprintCollisionFixture : public ::testing::Test
 
     Context makeContext (const std::vector<State> &statesToInject)
     {
-        return Context{dummyState_, dummyState_, [statesToInject] (PathType &p) { p.states = statesToInject; }};
+        return Context{dummyState_, dummyState_, [statesToInject] (const PathType &p) { p.states = statesToInject; }};
     }
 };
 

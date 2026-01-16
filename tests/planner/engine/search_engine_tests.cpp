@@ -225,7 +225,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     using EngineT = engine::SearchEngine<SteeringT, SearchT, SkeletonT>;
     using ConnectorT = typename EngineT::ConnectorType;
 
-    EngineFixture () : randomEngine_ (42), unitUniform_ (0.0, 1.0) {}
+    EngineFixture () = default;
 
     /**
      * @brief Pick a random interior (x,y) within the workspace envelope.
@@ -403,36 +403,46 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         return eng;
     }
 
+    struct RenderContext
+    {
+        int id;
+        std::string_view label;
+        bool ok;
+        const EngineT &engine;
+        const typename EngineT::DebugInfo &dbg;
+        const State &start;
+        const State &goal;
+        std::optional<Robot> robot = std::nullopt;
+    };
+
     /**
      * @brief Saves debug artifacts (SVGs) to the build directory.
      *
      */
-    void saveDebugArtifacts ([[maybe_unused]] int id, [[maybe_unused]] std::string_view label, [[maybe_unused]] bool ok, [[maybe_unused]] const EngineT &engine,
-                             [[maybe_unused]] const typename EngineT::DebugInfo &dbg, [[maybe_unused]] const State &start, [[maybe_unused]] const State &goal,
-                             [[maybe_unused]] const std::optional<Robot> &robot = std::nullopt)
+    void saveDebugArtifacts ([[maybe_unused]] const RenderContext &ctx) const
     {
 #ifdef AG_ENABLE_PLOTS
         int stepIdx = 0;
-        for (const auto &step : dbg.history)
+        for (const auto &step : ctx.dbg.history)
         {
-            const char *tag = ok ? "ok" : "fail";
+            const char *tag = ctx.ok ? "ok" : "fail";
             std::string safeName = step.name;
             std::replace (safeName.begin (), safeName.end (), ' ', '_');
 
             std::ostringstream fn;
-            fn << tag << "_" << (robot ? "fp_" : "") << id << "_step_" << stepIdx++ << "_" << safeName << ".svg";
-            auto outPath = arcgen::utils::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
+            fn << tag << "_" << (ctx.robot ? "fp_" : "") << ctx.id << "_step_" << stepIdx++ << "_" << safeName << ".svg";
+            auto outPath = arcgen::utils::plotFile ({"engine", Cfg::name (), std::string (ctx.label)}, fn.str ());
 
             Visualizer svg (outPath.string (), 900);
             const auto &pal = svg.getPalette ();
 
-            if (auto wptr = engine.getWorkspace ())
+            if (auto wptr = ctx.engine.getWorkspace ())
             {
                 svg.drawRegion (*wptr);
             }
-            if (dbg.graph)
+            if (ctx.dbg.graph)
             {
-                svg.drawSkeleton (*dbg.graph);
+                svg.drawSkeleton (*ctx.dbg.graph);
             }
 
             svg.drawPath (step.path);
@@ -446,19 +456,19 @@ template <class Cfg> class EngineFixture : public ::testing::Test
                 svg.drawPose (s, 9.0, pal.anchor);
 
             // Draw robot footprint outlines along the step path if robot is present
-            if (robot && !step.path.empty ())
+            if (ctx.robot && !step.path.empty ())
             {
                 const std::size_t n = step.path.size ();
                 for (std::size_t i = 0; i < n; ++i)
-                    svg.drawPolygon (robot->at (step.path[i]), "none", pal.robotFill, 0.8, 1.0);
+                    svg.drawPolygon (ctx.robot->at (step.path[i]), "none", pal.robotFill, 0.8, 1.0);
             }
 
-            svg.drawStartPose (start);
-            svg.drawGoalPose (goal);
-            if (robot)
+            svg.drawStartPose (ctx.start);
+            svg.drawGoalPose (ctx.goal);
+            if (ctx.robot)
             {
-                svg.drawPolygon (robot->at (start), "none", pal.robotFill, 0.8, 1.0);
-                svg.drawPolygon (robot->at (goal), "none", pal.robotFill, 0.8, 1.0);
+                svg.drawPolygon (ctx.robot->at (ctx.start), "none", pal.robotFill, 0.8, 1.0);
+                svg.drawPolygon (ctx.robot->at (ctx.goal), "none", pal.robotFill, 0.8, 1.0);
             }
 
             svg.drawAxes ();
@@ -531,7 +541,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         collectStats (label, ok, *engine, dbg, false, enableLocalSearch, LOCAL_BB_MARGIN);
 
 #ifdef AG_ENABLE_PLOTS
-        saveDebugArtifacts (id, label, ok, *engine, dbg, start, goal);
+        saveDebugArtifacts ({id, label, ok, *engine, dbg, start, goal});
 #endif
 
         ASSERT_TRUE (ok) << "Case " << id << " (" << label << ") failed: " << why.str ();
@@ -598,7 +608,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         collectStats (label, ok, *engine, dbg, true, enableLocalSearch, localBBMargin);
 
 #ifdef AG_ENABLE_PLOTS
-        saveDebugArtifacts (id, label, ok, *engine, dbg, start, goal, robot);
+        saveDebugArtifacts ({id, label, ok, *engine, dbg, start, goal, robot});
 #endif
 
         ASSERT_TRUE (ok) << "Footprint case " << id << " (" << label << ") failed: " << why.str ();
@@ -622,8 +632,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     }
 
   private:
-    std::mt19937 randomEngine_;
-    std::uniform_real_distribution<double> unitUniform_; // kept for future extensions
+    std::mt19937 randomEngine_{42};
+    std::uniform_real_distribution<double> unitUniform_{0.0, 1.0}; // kept for future extensions
 };
 
 /* ───────── instantiate engine combos here (extensible) ───────── */

@@ -25,7 +25,7 @@ struct MockSteering
 
     [[nodiscard]] std::vector<PathType> candidates (const State & /*start*/, const State & /*goal*/) const { return cannedCandidates; }
 
-    void ensureStates (const State & /*start*/, PathType &path) const
+    void ensureStates (const State & /*start*/, const PathType &path) const
     {
         if (!path.states)
         {

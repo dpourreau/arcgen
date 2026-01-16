@@ -17,6 +17,7 @@
 #include <optional>
 #include <span>
 #include <vector>
+#include <utility>
 
 #include <arcgen/core/control.hpp>
 #include <arcgen/core/math.hpp>
@@ -26,7 +27,11 @@
 
 namespace arcgen::steering
 {
-    using namespace arcgen::core;
+    using arcgen::core::Control;
+    using arcgen::core::State;
+    using arcgen::core::normalizeAngleSigned;
+    using arcgen::core::computeArcEndpoint;
+    using arcgen::core::computeLineEndpoint;
 
     template <class, std::size_t> class SteeringBase;
 
@@ -114,7 +119,7 @@ namespace arcgen::steering
          * @return Vector of candidates; each contains concrete controls and per-segment AABBs.
          */
         [[nodiscard]] std::vector<Path<N>> candidates (State a, State b) const noexcept (noexcept (static_cast<const Derived &> (*this).getArcs (a, b)))
-            requires requires (const Derived &dd, const State &s0, const State &s1) { dd.getArcs (s0, s1); }
+            requires SteeringPolicy<Derived, N>
         {
             a.heading = normalizeAngleSigned (a.heading);
             b.heading = normalizeAngleSigned (b.heading);
@@ -172,7 +177,7 @@ namespace arcgen::steering
          * @return Candidate with lazily generated states filled in. Returns empty Path on failure.
          */
         [[nodiscard]] Path<N> shortestPath (State &a, State &b) const noexcept (noexcept (static_cast<const Derived &> (*this).getArcs (a, b)))
-            requires requires (const Derived &dd, const State &s0, const State &s1) { dd.getArcs (s0, s1); }
+            requires SteeringPolicy<Derived, N>
         {
             auto all = candidates (a, b);
             if (all.empty ())
@@ -191,7 +196,7 @@ namespace arcgen::steering
          * @param start  Start state used for integration.
          * @param cand   Candidate to augment (states are filled in if missing).
          */
-        void ensureStates (const State &start, Path<N> &cand) const
+        void ensureStates (const State &start, const Path<N> &cand) const
         {
             if (!cand.states)
                 cand.states = integrate (start, cand.controls.view ());
@@ -219,11 +224,11 @@ namespace arcgen::steering
 
             if (std::fabs (ctl.curvature) > arcgen::core::CURVATURE_TOL)
             {
-                std::tie (nxt.x, nxt.y, nxt.heading) = computeArcEndpoint (st.x, st.y, st.heading, ctl.curvature, static_cast<int> (nxt.direction), ds);
+                std::tie (nxt.x, nxt.y, nxt.heading) = computeArcEndpoint (st.x, st.y, st.heading, ctl.curvature, std::to_underlying (nxt.direction), ds);
             }
             else
             {
-                std::tie (nxt.x, nxt.y) = computeLineEndpoint (st.x, st.y, st.heading, static_cast<int> (nxt.direction), ds);
+                std::tie (nxt.x, nxt.y) = computeLineEndpoint (st.x, st.y, st.heading, std::to_underlying (nxt.direction), ds);
                 nxt.heading = st.heading;
             }
             // Carry curvature forward; callers usually set st.curvature = ctl.curvature beforehand.

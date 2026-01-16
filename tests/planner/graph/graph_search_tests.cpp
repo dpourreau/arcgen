@@ -102,7 +102,7 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
         return instance;
     }
 
-    MazeTimingFixture () : rng_ (seedCounter_++) {}
+    MazeTimingFixture () = default;
 
     void runOne ([[maybe_unused]] int id)
     {
@@ -178,7 +178,7 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
     }
 
     Search search_;
-    std::mt19937 rng_;
+    std::mt19937 rng_{seedCounter_++};
     inline static unsigned seedCounter_ = 1;
 };
 

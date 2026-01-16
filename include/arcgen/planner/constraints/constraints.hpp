@@ -37,7 +37,7 @@ namespace arcgen::planner::constraints
          *
          * Implementations typically call the steering policy's integration.
          */
-        std::function<void (Path<N> &)> ensureStates;
+        std::function<void (const Path<N> &)> ensureStates;
     };
 
     /**

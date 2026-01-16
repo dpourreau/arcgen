@@ -24,7 +24,7 @@ class PathLengthConstraintTest : public ::testing::Test
 
     Constraint constraint_;
     State dummy_{0, 0, 0};
-    Context ctx_{dummy_, dummy_, [] (PathType &) {}};
+    Context ctx_{dummy_, dummy_, [] (const PathType &) {}};
 };
 
 /// @brief Verify cost calculation from `p.controls.length`.

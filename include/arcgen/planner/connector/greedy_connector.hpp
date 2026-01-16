@@ -187,7 +187,7 @@ namespace arcgen::planner::connector
             PathT p;
             p.states = step.path;
             // Empty callback is safe here as we only score, not generate
-            typename Evaluator<Steering>::EvalContext ctx{step.path.front (), step.path.back (), [] (PathT &) { /* No-op */ }};
+            typename Evaluator<Steering>::EvalContext ctx{step.path.front (), step.path.back (), [] (const PathT &) { /* No-op */ }};
             step.stats.totalCost = cset->score (p, ctx);
 
             for (const auto &[c, w] : cset->soft)
@@ -291,14 +291,7 @@ namespace arcgen::planner::connector
 
                 accumulated += d;
 
-                if (isJoint)
-                {
-                    // p1 is start of new segment
-                    if (indices.back () != i + 1)
-                        indices.push_back (i + 1);
-                    accumulated = 0.0;
-                }
-                else if (accumulated >= resampleInterval_)
+                if (isJoint || accumulated >= resampleInterval_)
                 {
                     if (indices.back () != i + 1)
                         indices.push_back (i + 1);
@@ -449,7 +442,8 @@ namespace arcgen::planner::connector
             {
                 auto &states = pathStack[i];
                 double s = scores[i];
-                int64_t newId = nextSteeringId_++;
+                int64_t newId = nextSteeringId_;
+                nextSteeringId_++;
 
                 if (!out.empty () && !states.empty ())
                 {
@@ -939,7 +933,8 @@ namespace arcgen::planner::connector
 
                 if (shortcut)
                 {
-                    int64_t shortcutId = nextSteeringId_++;
+                    int64_t shortcutId = nextSteeringId_;
+                    nextSteeringId_++;
                     applyShortcut (session, ctx, *shortcut, shortcutId, i, i);
                 }
                 else

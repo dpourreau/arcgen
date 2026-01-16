@@ -34,16 +34,17 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <expected>
 
 namespace bg = boost::geometry;
 
-#include <expected>
-
 namespace arcgen::planner::engine
 {
-    using namespace arcgen::core;
-    using namespace arcgen::planner::geometry;
-    using namespace arcgen::planner::connector;
+    using arcgen::core::State;
+    using arcgen::planner::connector::GreedyConnector;
+    using arcgen::planner::geometry::Point;
+    using arcgen::planner::geometry::Polygon;
+    using arcgen::planner::geometry::Workspace;
 
     /**
      * @brief Error codes for the planning process.
@@ -55,6 +56,17 @@ namespace arcgen::planner::engine
         NoPathFound,   ///< No feasible path found
         InternalError, ///< Engine not initialized correctly
         Timeout        ///< (Reserved for future use)
+    };
+
+    /**
+     * @brief Transparent hasher for heterogeneous string lookups (std::string, std::string_view, const char*).
+     */
+    struct StringHash
+    {
+        using is_transparent = void;
+        [[nodiscard]] std::size_t operator() (std::string_view txt) const noexcept { return std::hash<std::string_view>{} (txt); }
+        [[nodiscard]] std::size_t operator() (const std::string &txt) const noexcept { return std::hash<std::string>{} (txt); }
+        [[nodiscard]] std::size_t operator() (const char *txt) const noexcept { return std::hash<std::string_view>{} (txt); }
     };
 
     /**
@@ -120,7 +132,7 @@ namespace arcgen::planner::engine
             struct TrajectoryStats
             {
                 double totalCost{0.0};
-                std::unordered_map<std::string, double> softConstraints;
+                std::unordered_map<std::string, double, StringHash, std::equal_to<>> softConstraints;
             };
 
             struct Step
@@ -137,7 +149,7 @@ namespace arcgen::planner::engine
             std::vector<Step> history;
 
             /// High-level component profiling (e.g., "Skeleton", "Graph Search").
-            std::unordered_map<std::string, double> componentTimes;
+            std::unordered_map<std::string, double, StringHash, std::equal_to<>> componentTimes;
 
             // Skeleton graph actually used (copied) when associated with a stage.
             std::optional<GlobalGraph> graph;
@@ -330,14 +342,11 @@ namespace arcgen::planner::engine
                         step.stats.totalCost = best->second;
                         step.computationTime = std::chrono::duration<double> (t1 - t0).count ();
 
-                        if (const auto *cset = evaluator.getConstraints ())
+                        if (const auto *cset = evaluator.getConstraints (); cset && !cset->soft.empty ())
                         {
-                            if (!cset->soft.empty ())
-                            {
-                                // Recalculate breakdown if needed or assumption: single segment cost is simple.
-                                // NOTE: Detailed breakdown would require constraints->score to return breakdown.
-                                // For now, we can just manually score soft constraints if we want breakdown.
-                            }
+                            // Recalculate breakdown if needed or assumption: single segment cost is simple.
+                            // NOTE: Detailed breakdown would require constraints->score to return breakdown.
+                            // For now, we can just manually score soft constraints if we want breakdown.
                         }
                         dbg->history.push_back (std::move (step));
                         dbg->source = DebugInfo::Source::Direct;
@@ -346,49 +355,6 @@ namespace arcgen::planner::engine
                 }
             }
 
-            auto tryGraph = [&] (auto &&graph, std::string stageName) -> std::optional<std::vector<State>>
-            {
-                // Measure Graph Search Time
-                auto t0 = std::chrono::steady_clock::now ();
-                auto coarse = graphSearch_->search (graph, start, goal);
-                auto t1 = std::chrono::steady_clock::now ();
-
-                if (dbg)
-                {
-                    dbg->componentTimes["Graph Search (" + stageName + ")"] = std::chrono::duration<double> (t1 - t0).count ();
-                }
-
-                if (coarse.size () < 2)
-                    return std::nullopt;
-
-                if (dbg)
-                {
-                    dbg->graph = graph; // copy for visualization
-                }
-
-                auto tConn0 = std::chrono::steady_clock::now ();
-                auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
-                auto tConn1 = std::chrono::steady_clock::now ();
-
-                if (dbg)
-                {
-                    dbg->componentTimes["Connection (" + stageName + ")"] = std::chrono::duration<double> (tConn1 - tConn0).count ();
-                }
-
-                if (path.empty ())
-                    return std::nullopt;
-
-                if (dbg)
-                {
-                    if (stageName == "Local")
-                        dbg->source = DebugInfo::Source::Local;
-                    else if (stageName == "Global")
-                        dbg->source = DebugInfo::Source::Global;
-                }
-                return path;
-            };
-
-            // ── Stage 2: local skeleton (axis-aligned rectangle around start/goal + margin)
             if (enableLocalSearch_)
             {
                 const double margin = localBBMargin_;
@@ -416,34 +382,30 @@ namespace arcgen::planner::engine
                     if (dbg)
                         dbg->componentTimes["Skeleton Generation (Local)"] = std::chrono::duration<double> (t1 - t0).count ();
 
-                    if (auto path = tryGraph (localGraph, "Local"))
+                    if (auto path = planOnGraph (localGraph, "Local", start, goal, dbg, evaluator))
                         return *path;
                 }
             }
 
             // ── Stage 3: global skeleton (lazy, cached; rebuild if needed).
-            if (!globalGraph_)
+            if (!globalGraph_ && skeleton_ && workspace_ && !workspace_->empty ())
             {
-                if (skeleton_ && workspace_ && !workspace_->empty ())
-                {
-                    auto t0 = std::chrono::steady_clock::now ();
-                    globalGraph_.emplace (skeleton_->generate (*workspace_));
-                    auto t1 = std::chrono::steady_clock::now ();
-                    if (dbg)
-                        dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
-                }
+                auto t0 = std::chrono::steady_clock::now ();
+                globalGraph_.emplace (skeleton_->generate (*workspace_));
+                auto t1 = std::chrono::steady_clock::now ();
+                if (dbg)
+                    dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
             }
 
             if (!globalGraph_)
                 return std::unexpected (PlanningError::NoPathFound); // workspace empty or skeleton generation failed
 
-            if (auto path = tryGraph (*globalGraph_, "Global"))
+            if (auto path = planOnGraph (*globalGraph_, "Global", start, goal, dbg, evaluator))
                 return *path;
 
             return std::unexpected (PlanningError::NoPathFound);
         }
 
-      private:
         std::shared_ptr<Steering> steering_;       ///< Steering-law policy.
         std::shared_ptr<GraphSearch> graphSearch_; ///< Graph search adaptor.
         std::shared_ptr<Skeleton> skeleton_;       ///< Skeleton generator.
@@ -453,6 +415,49 @@ namespace arcgen::planner::engine
         ConstraintSet constraints_;                ///< Active constraints (hard + soft).
         bool enableLocalSearch_;                   ///< Enable Stage 2 local search.
         double localBBMargin_;                     ///< Margin for local bounding box search.
+
+        [[nodiscard]] std::optional<std::vector<State>> planOnGraph (const GlobalGraph &graph, std::string_view stageName, const State &start, const State &goal, DebugInfo *dbg,
+                                                                     const Evaluator<Steering> &evaluator)
+        {
+            // Measure Graph Search Time
+            auto t0 = std::chrono::steady_clock::now ();
+            auto coarse = graphSearch_->search (graph, start, goal);
+            auto t1 = std::chrono::steady_clock::now ();
+
+            if (dbg)
+            {
+                dbg->componentTimes[std::string ("Graph Search (").append (stageName).append (")")] = std::chrono::duration<double> (t1 - t0).count ();
+            }
+
+            if (coarse.size () < 2)
+                return std::nullopt;
+
+            if (dbg)
+            {
+                dbg->graph = graph; // copy for visualization
+            }
+
+            auto tConn0 = std::chrono::steady_clock::now ();
+            auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
+            auto tConn1 = std::chrono::steady_clock::now ();
+
+            if (dbg)
+            {
+                dbg->componentTimes[std::string ("Connection (").append (stageName).append (")")] = std::chrono::duration<double> (tConn1 - tConn0).count ();
+            }
+
+            if (path.empty ())
+                return std::nullopt;
+
+            if (dbg)
+            {
+                if (stageName == "Local")
+                    dbg->source = DebugInfo::Source::Local;
+                else if (stageName == "Global")
+                    dbg->source = DebugInfo::Source::Global;
+            }
+            return path;
+        }
     };
 
 } // namespace arcgen::planner::engine

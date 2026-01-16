@@ -42,7 +42,12 @@ namespace arcgen::core
          */
         inline constexpr void setDirectionFrom (double value) noexcept
         {
-            direction = (value > 0.0) ? DrivingDirection::Forward : (value < 0.0) ? DrivingDirection::Reverse : DrivingDirection::Neutral;
+            if (value > 0.0)
+                direction = DrivingDirection::Forward;
+            else if (value < 0.0)
+                direction = DrivingDirection::Reverse;
+            else
+                direction = DrivingDirection::Neutral;
         }
     };
 

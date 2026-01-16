@@ -34,7 +34,11 @@ namespace arcgen::core
          */
         [[nodiscard]] constexpr DrivingDirection direction () const noexcept
         {
-            return (arcLength > 0.0) ? DrivingDirection::Forward : (arcLength < 0.0) ? DrivingDirection::Reverse : DrivingDirection::Neutral;
+            if (arcLength > 0.0)
+                return DrivingDirection::Forward;
+            if (arcLength < 0.0)
+                return DrivingDirection::Reverse;
+            return DrivingDirection::Neutral;
         }
     };
 
@@ -72,7 +76,8 @@ namespace arcgen::core
             assert (n < N && "ControlSeq overflow");
             if (n >= N)
                 return false;
-            buf[n++] = c;
+            buf[n] = c;
+            n++;
             length += std::fabs (c.arcLength);
             return true;
         }

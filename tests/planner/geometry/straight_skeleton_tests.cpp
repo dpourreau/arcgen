@@ -66,7 +66,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     using VDesc = boost::graph_traits<Graph>::vertex_descriptor;
     using EDesc = boost::graph_traits<Graph>::edge_descriptor;
 
-    SkeletonFixture () : rng_ (1337) {}
+    SkeletonFixture () = default;
 
     /// @brief Print average timings for this skeleton (once per type).
 
@@ -80,7 +80,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     {
         Graph G;
 
-        G = skel_.generate (W);
+        G = this->getSkel ().generate (W);
 
         bool ok = true;
         std::ostringstream why;
@@ -91,35 +91,10 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
             why << "empty graph; ";
         }
 
-        const auto &region = W.region ();
-        for (VDesc v : boost::make_iterator_range (vertices (G)))
+        if (auto error = validateGraph (G, W.region ()))
         {
-            if (!bg::within (G[v], region))
-            {
-                ok = false;
-                why << "vertex outside region; ";
-                break;
-            }
-        }
-
-        auto wmap = get (boost::edge_weight, G);
-        for (EDesc e : boost::make_iterator_range (edges (G)))
-        {
-            const Point &p = G[source (e, G)];
-            const Point &q = G[target (e, G)];
-            const Point mid{(p.x () + q.x ()) * 0.5, (p.y () + q.y ()) * 0.5};
-            if (!bg::within (mid, region))
-            {
-                ok = false;
-                why << "edge crosses obstacle; ";
-                break;
-            }
-            if (std::fabs (wmap[e] - edgeLength (p, q)) > EPS_WEIGHT)
-            {
-                ok = false;
-                why << "edge weight mismatch; ";
-                break;
-            }
+            ok = false;
+            why << *error;
         }
 
 #ifdef AG_ENABLE_PLOTS
@@ -186,7 +161,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
                 continue;
 
             Graph G;
-            G = skel_.generate (localW);
+            G = this->getSkel ().generate (localW);
 
             bool ok = true;
             std::ostringstream why;
@@ -197,36 +172,10 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
                 why << "empty local graph; ";
             }
 
-            const auto &region = localW.region ();
-            auto wmap = get (boost::edge_weight, G);
-
-            for (VDesc v : boost::make_iterator_range (vertices (G)))
+            if (auto error = validateGraph (G, localW.region (), true))
             {
-                if (!bg::within (G[v], region))
-                {
-                    ok = false;
-                    why << "local vertex outside region; ";
-                    break;
-                }
-            }
-
-            for (EDesc e : boost::make_iterator_range (edges (G)))
-            {
-                const Point &p = G[source (e, G)];
-                const Point &q = G[target (e, G)];
-                const Point mid{(p.x () + q.x ()) * 0.5, (p.y () + q.y ()) * 0.5};
-                if (!bg::within (mid, region))
-                {
-                    ok = false;
-                    why << "local edge crosses obstacle; ";
-                    break;
-                }
-                if (std::fabs (wmap[e] - edgeLength (p, q)) > EPS_WEIGHT)
-                {
-                    ok = false;
-                    why << "local edge weight mismatch; ";
-                    break;
-                }
+                ok = false;
+                why << *error;
             }
 
 #ifdef AG_ENABLE_PLOTS
@@ -252,11 +201,34 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
     std::mt19937 &rng () { return rng_; }
     const std::mt19937 &rng () const { return rng_; }
 
-  protected:
-    SkeletonT skel_;
-    std::mt19937 rng_;
+    SkeletonT &getSkel () { return skel_; }
+
+    std::optional<std::string> validateGraph (const Graph &G, const MultiPolygon &region, bool isLocal = false) const
+    {
+        for (VDesc v : boost::make_iterator_range (vertices (G)))
+        {
+            if (!bg::within (G[v], region))
+                return isLocal ? "local vertex outside region; " : "vertex outside region; ";
+        }
+
+        auto wmap = get (boost::edge_weight, G);
+        for (EDesc e : boost::make_iterator_range (edges (G)))
+        {
+            const Point &p = G[source (e, G)];
+            const Point &q = G[target (e, G)];
+            const Point mid{(p.x () + q.x ()) * 0.5, (p.y () + q.y ()) * 0.5};
+            if (!bg::within (mid, region))
+                return isLocal ? "local edge crosses obstacle; " : "edge crosses obstacle; ";
+
+            if (std::fabs (wmap[e] - edgeLength (p, q)) > EPS_WEIGHT)
+                return isLocal ? "local edge weight mismatch; " : "edge weight mismatch; ";
+        }
+        return std::nullopt;
+    }
 
   private:
+    SkeletonT skel_;
+    std::mt19937 rng_{1337};
 };
 
 using TestedSkeletons = ::testing::Types<StraightSkeleton>;
@@ -291,7 +263,7 @@ TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
     {
         Polygon p;
         Workspace w (p);
-        auto g = this->skel_.generate (w);
+        auto g = this->getSkel ().generate (w);
         EXPECT_EQ (boost::num_vertices (g), 0);
         EXPECT_EQ (boost::num_edges (g), 0);
     }
@@ -303,7 +275,7 @@ TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
         bg::correct (poly);
         Workspace w (poly);
 
-        auto g = this->skel_.generate (w);
+        auto g = this->getSkel ().generate (w);
         EXPECT_EQ (boost::num_vertices (g), 1);
         EXPECT_EQ (boost::num_edges (g), 0);
     }
@@ -321,7 +293,7 @@ TYPED_TEST (SkeletonFixture, ExplicitEdgeCases)
         obstacles.push_back (bar);
 
         Workspace w (outer, obstacles);
-        auto g = this->skel_.generate (w);
+        auto g = this->getSkel ().generate (w);
         EXPECT_EQ (boost::num_vertices (g), 4);
         EXPECT_EQ (boost::num_edges (g), 2);
     }

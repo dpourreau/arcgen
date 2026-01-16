@@ -63,6 +63,7 @@ TEST_F (RobotFixture, Ellipse)
     const double length = 4.0;
     const double width = 2.0;
     std::vector<std::pair<std::string, Robot>> robots;
+    robots.reserve (3);
     robots.emplace_back ("rect_center", Robot::rectangle (length, width));
     robots.emplace_back ("rect_rear", Robot::rectangle (length, width, -length * 0.5, 0.0)); // reference at rear-center
     robots.emplace_back ("wedge", makeWedge (length, width));
@@ -156,6 +157,7 @@ TEST_F (RobotFixture, HalfTurnVShape)
     const double length = 3.5;
     const double width = 1.4;
     std::vector<std::pair<std::string, Robot>> robots;
+    robots.reserve (3);
     robots.emplace_back ("rect_center", Robot::rectangle (length, width));
     robots.emplace_back ("rect_rear", Robot::rectangle (length, width, -length * 0.5, 0.0));
     robots.emplace_back ("wedge", makeWedge (length, width));
