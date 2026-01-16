@@ -187,7 +187,7 @@ namespace arcgen::planner::connector
             PathT p;
             p.states = step.path;
             // Empty callback is safe here as we only score, not generate
-            typename Evaluator<Steering>::EvalContext ctx{step.path.front (), step.path.back (), [] (PathT &) { /* No-op */ }};
+            typename Evaluator<Steering>::EvalContext ctx{step.path.front (), step.path.back (), [] (const PathT &) { /* No-op */ }};
             step.stats.totalCost = cset->score (p, ctx);
 
             for (const auto &[c, w] : cset->soft)

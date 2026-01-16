@@ -42,7 +42,7 @@ namespace
             return {};
         }
 
-        void ensureStates (const State &start, PathType &path) const
+        void ensureStates (const State &start, const PathType &path) const
         {
             if (!path.states)
             {

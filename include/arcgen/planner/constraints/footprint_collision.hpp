@@ -64,8 +64,8 @@ namespace arcgen::planner::constraints
             if (!workspace_ || workspace_->empty ())
                 return true;
 
-            ctx.ensureStates (const_cast<Path<N> &> (cand));
-            return cand.states && coveredByStraightHull (*workspace_, robot_, *cand.states, curvatureTol_);
+            ctx.ensureStates (cand);
+            return cand.states && checkPath (*workspace_, robot_, *cand.states, curvatureTol_);
         }
 
       private:
@@ -74,69 +74,115 @@ namespace arcgen::planner::constraints
         double curvatureTol_{};                      ///< Curvature tolerance for straight-run detection.
 
         /**
-         * @brief Curvature-only straight-run accelerator using convex hull of endpoints.
-         * @param workspace     Workspace for coverage queries.
-         * @param robot         Robot polygon footprint (body frame).
-         * @param states        Discretized states along the candidate path.
-         * @param curvatureTol  Threshold to classify near-zero curvature.
-         * @return True if the entire sweep is covered by the workspace; false otherwise.
+         * @brief Check if a state is effectively straight (curvature near zero).
          */
-        static inline bool coveredByStraightHull (const Workspace &workspace, const Robot &robot, const std::vector<State> &states, double curvatureTol)
+        static bool isStraight (const State &s, double tol)
+        {
+            return std::fabs (s.curvature) <= tol;
+        }
+
+        /**
+         * @brief Check if a single state is safe.
+         */
+        static bool checkState (const Workspace &ws, const Robot &robot, const State &s)
+        {
+            return ws.coveredBy (robot.at (s));
+        }
+
+        /**
+         * @brief Check a range of states individually.
+         */
+        static bool checkRange (const Workspace &ws, const Robot &robot, const std::vector<State> &states, std::size_t start, std::size_t end)
+        {
+            for (std::size_t k = start; k <= end; ++k)
+            {
+                if (!checkState (ws, robot, states[k]))
+                    return false;
+            }
+            return true;
+        }
+
+        /**
+         * @brief Finds the end index of a straight run starting at 'start'.
+         * @return Index of the last straight state in the consecutive run.
+         */
+        static std::size_t findStraightEnd (const std::vector<State> &states, std::size_t start, double tol)
+        {
+            std::size_t end = start;
+            while (end + 1 < states.size () && isStraight (states[end + 1], tol))
+            {
+                end++;
+            }
+            return end;
+        }
+
+        /**
+         * @brief Checks if the convex hull of the footprints at start and end of a straight run is safe.
+         */
+        static bool checkStraightHull (const Workspace &ws, const Robot &robot, const State &sStart, const State &sEnd)
+        {
+            const Polygon p0 = robot.at (sStart);
+            const Polygon p1 = robot.at (sEnd);
+
+            bg::model::multi_point<Point> cloud;
+            // Reserve approximate size: outer rings usually small
+            cloud.reserve (p0.outer ().size () + p1.outer ().size ());
+            cloud.insert (cloud.end (), p0.outer ().begin (), p0.outer ().end ());
+            cloud.insert (cloud.end (), p1.outer ().begin (), p1.outer ().end ());
+
+            Polygon hull;
+            bg::convex_hull (cloud, hull);
+            bg::correct (hull);
+
+            return ws.coveredBy (hull);
+        }
+
+        /**
+         * @brief Validates the entire path against the workspace obstacles.
+         *
+         * Uses a curvature-aware accelerator to skip redundant checks on straight runs.
+         */
+        static inline bool checkPath (const Workspace &workspace, const Robot &robot, const std::vector<State> &states, double curvatureTol)
         {
             if (states.empty ())
                 return true;
 
             const std::size_t n = states.size ();
-            std::size_t i = 0;
-            while (i < n)
+            for (std::size_t i = 0; i < n;)
             {
-                const bool straight0 = std::fabs (states[i].curvature) <= curvatureTol;
-
-                if (straight0)
+                // 1. Curved state? Check single and move on.
+                if (!isStraight (states[i], curvatureTol))
                 {
-                    std::size_t j = i;
-                    while (j + 1 < n && std::fabs (states[j + 1].curvature) <= curvatureTol)
-                        ++j;
-
-                    if (j > i)
-                    {
-                        const Polygon p0 = robot.at (states[i]);
-                        const Polygon p1 = robot.at (states[j]);
-
-                        bg::model::multi_point<Point> cloud;
-                        cloud.insert (cloud.end (), p0.outer ().begin (), p0.outer ().end ());
-                        cloud.insert (cloud.end (), p1.outer ().begin (), p1.outer ().end ());
-
-                        Polygon hull;
-                        bg::convex_hull (cloud, hull);
-                        bg::correct (hull);
-
-                        if (workspace.coveredBy (hull))
-                        {
-                            i = j + 1; // accept entire straight run
-                            continue;
-                        }
-                        // else fall through to per-state checks in [i, j]
-                        for (std::size_t k = i; k <= j; ++k)
-                        {
-                            const Polygon placed = robot.at (states[k]);
-                            if (!workspace.coveredBy (placed))
-                                return false;
-                        }
-                        i = j + 1;
-                        continue;
-                    }
-                    // single straight sample
-                    if (!workspace.coveredBy (robot.at (states[i])))
+                    if (!checkState (workspace, robot, states[i]))
                         return false;
                     ++i;
                     continue;
                 }
 
-                // curved sample – check per-state
-                if (!workspace.coveredBy (robot.at (states[i])))
+                // 2. Straight state - see how far it goes.
+                std::size_t j = findStraightEnd (states, i, curvatureTol);
+
+                // If only one point, treat as single check
+                if (j == i)
+                {
+                    if (!checkState (workspace, robot, states[i]))
+                        return false;
+                    ++i;
+                    continue;
+                }
+
+                // 3. Optimization: check hull of start/end of straight run
+                if (checkStraightHull (workspace, robot, states[i], states[j]))
+                {
+                    i = j + 1; // Success: skip to after the run
+                    continue;
+                }
+
+                // 4. Fallback: check every state in the run
+                if (!checkRange (workspace, robot, states, i, j))
                     return false;
-                ++i;
+
+                i = j + 1;
             }
             return true;
         }

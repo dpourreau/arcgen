@@ -40,8 +40,7 @@ namespace arcgen::planner::constraints
             if (!workspace_ || workspace_->empty ())
                 return true;
 
-            // Path::states is mutable; we cast only to allow filling it via ctx.ensureStates without changing semantics.
-            ctx.ensureStates (const_cast<Path<N> &> (cand));
+            ctx.ensureStates (cand);
             return cand.states && workspace_->contains (*cand.states);
         }
 

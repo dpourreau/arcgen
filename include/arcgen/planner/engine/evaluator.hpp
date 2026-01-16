@@ -78,7 +78,7 @@ namespace arcgen::planner::engine
 
             p.states = std::vector<arcgen::core::State> (path.begin (), path.end ());
 
-            EvalContext ctx{path.front (), path.back (), [] (PathT &) {}};
+            EvalContext ctx{path.front (), path.back (), [] (const PathT &) {}};
             return constraints_->score (p, ctx);
         }
 
@@ -88,7 +88,7 @@ namespace arcgen::planner::engine
             if (!steering_ || !constraints_)
                 return std::nullopt;
 
-            EvalContext ctx{a, b, [&] (PathT &p) { steering_->ensureStates (a, p); }};
+            EvalContext ctx{a, b, [&] (const PathT &p) { steering_->ensureStates (a, p); }};
 
             std::optional<std::size_t> argmin;
             double bestScore = std::numeric_limits<double>::infinity ();

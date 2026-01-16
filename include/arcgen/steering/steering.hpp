@@ -191,7 +191,7 @@ namespace arcgen::steering
          * @param start  Start state used for integration.
          * @param cand   Candidate to augment (states are filled in if missing).
          */
-        void ensureStates (const State &start, Path<N> &cand) const
+        void ensureStates (const State &start, const Path<N> &cand) const
         {
             if (!cand.states)
                 cand.states = integrate (start, cand.controls.view ());
