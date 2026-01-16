@@ -39,6 +39,16 @@ if (AG_ENABLE_TEST_REPORT)
     add_compile_definitions (AG_ENABLE_TEST_REPORT)
 endif ()
 
+option(AG_ENABLE_COVERAGE "Enable code coverage generation (GCC/Clang)" OFF)
+if(AG_ENABLE_COVERAGE)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(--coverage)
+    add_link_options(--coverage)
+  else()
+    message(WARNING "Coverage not supported for this compiler")
+  endif()
+endif()
+
 # ──────────────────────────────────────────────────────────────
 #  Compiler settings
 # ──────────────────────────────────────────────────────────────

@@ -19,13 +19,18 @@ jobs:
         sudo apt-get install -y libboost-all-dev libcgal-dev ninja-build
 
     - name: Configure CMake
-      run: cmake --preset release-tests
+      run: cmake --preset release-coverage
 
     - name: Build
-      run: cmake --build --preset release-tests
+      run: cmake --build --preset release-coverage
 
     - name: Test
-      run: ctest --preset release-tests
+      run: ctest --preset release-coverage
+
+    - name: Generate Coverage Report
+      run: |
+        pip install gcovr
+        gcovr -r . --xml -o coverage.xml --exclude-directories "tests|build/coverage/_deps"
 
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v5.0.0
