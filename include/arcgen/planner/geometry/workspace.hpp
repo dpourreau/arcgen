@@ -92,12 +92,8 @@ namespace arcgen::planner::geometry
             BBox box{p, p};
 
             // Query polygons whose envelopes intersect the point's zero-area box.
-            for (const auto &[entryBox, idx] : rtree_ | bgi::adaptors::queried (bgi::intersects (box)))
-            {
-                if (bg::within (p, region_[idx]))
-                    return true;
-            }
-            return false;
+            auto query = rtree_ | bgi::adaptors::queried (bgi::intersects (box));
+            return std::ranges::any_of (query, [this, &p] (const auto &val) { return bg::within (p, region_[val.second]); });
         }
 
         /**
@@ -133,8 +129,7 @@ namespace arcgen::planner::geometry
             bg::envelope (p, pb);
 
             auto query = rtree_ | bgi::adaptors::queried (bgi::intersects (pb));
-            return std::any_of (query.begin (), query.end (),
-                                [this, &p] (const auto &val) { return bg::covered_by (p, region_[val.second]); });
+            return std::ranges::any_of (query, [this, &p] (const auto &val) { return bg::covered_by (p, region_[val.second]); });
 
             // No candidate envelopes overlapped, or none fully covered the polygon
             return false;

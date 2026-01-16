@@ -406,7 +406,6 @@ namespace arcgen::planner::engine
             return std::unexpected (PlanningError::NoPathFound);
         }
 
-      private:
         std::shared_ptr<Steering> steering_;       ///< Steering-law policy.
         std::shared_ptr<GraphSearch> graphSearch_; ///< Graph search adaptor.
         std::shared_ptr<Skeleton> skeleton_;       ///< Skeleton generator.
