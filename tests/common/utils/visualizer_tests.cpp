@@ -13,14 +13,14 @@ using arcgen::utils::Visualizer;
 
 TEST (VisualizerTest, InstantiationAndFileCreation)
 {
-    std::string filename = "test_viz.svg";
+    std::filesystem::path filename = "test_viz.svg";
     if (std::filesystem::exists (filename))
     {
         std::filesystem::remove (filename);
     }
 
     {
-        Visualizer viz (filename);
+        Visualizer viz (filename.string ());
         viz.drawAxes ();
         viz.drawStartPose ({0, 0, 0});
         viz.drawGoalPose ({10, 10, 0});
@@ -32,11 +32,11 @@ TEST (VisualizerTest, InstantiationAndFileCreation)
 
 TEST (VisualizerTest, CustomPaletteAndScaling)
 {
-    std::string filename = "test_viz_custom.svg";
+    std::filesystem::path filename = "test_viz_custom.svg";
     Palette p;
     p.bg = "#000000";
     {
-        Visualizer viz (filename, 500, p);
+        Visualizer viz (filename.string (), 500, p);
         viz.setScale (10.0);
         viz.setOffset (5.0, 5.0);
         std::vector<arcgen::core::State> pth = {{0, 0, 0}, {1, 1, 1}};

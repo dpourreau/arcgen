@@ -37,3 +37,67 @@ TEST (ReedsSheppSpecific, MassiveRandomCoverage)
         }
     }
 }
+
+TEST (ReedsSheppCoverage, GeometricGridCoverage)
+{
+    // Systematic grid search to hit rare geometric families (CCC, CCCC, CCSCC)
+    // Random tests often miss the specific boundaries of the partition cells.
+    const double steps_lin = 21;
+    const double range_lin = 15.0; // +/- 15m (r=6m means ~2.5 radii)
+    const double steps_ang = 19;
+
+    std::size_t valid_paths = 0;
+
+    // Use a smaller radius to make 'relative' distances larger effectively
+    ReedsShepp policy (2.0);
+
+    for (int i = 0; i < steps_lin; ++i)
+    {
+        double x = -range_lin + i * (2.0 * range_lin / (steps_lin - 1));
+        for (int j = 0; j < steps_lin; ++j)
+        {
+            double y = -range_lin + j * (2.0 * range_lin / (steps_lin - 1));
+            for (int k = 0; k < steps_ang; ++k)
+            {
+                double th = -std::numbers::pi + k * (2.0 * std::numbers::pi / (steps_ang - 1));
+
+                State start{0, 0, 0};
+                State goal{x, y, th};
+
+                auto arcs = policy.getArcs (start, goal);
+                if (!arcs.empty ())
+                {
+                    valid_paths++;
+                    // Check validity of the best path
+                    EXPECT_LE (arcs[0].total (), 1000.0); // Sanity check
+                }
+            }
+        }
+    }
+    // Should find paths for almost all configurations (except maybe colocated with weird angles if any)
+    EXPECT_GT (valid_paths, 100);
+}
+
+TEST (ReedsSheppCoverage, HighVolumeRandom)
+{
+    std::mt19937 gen (42);
+    // ... existing random test ...
+    std::uniform_real_distribution distPos (-20.0, 20.0);
+    std::uniform_real_distribution distTheta (-std::numbers::pi, std::numbers::pi);
+
+    ReedsShepp policy (3.0, 0.1); // rMin=3.0
+
+    for (int i = 0; i < 5000; ++i)
+    {
+        State s1{distPos (gen), distPos (gen), distTheta (gen)};
+        State s2{distPos (gen), distPos (gen), distTheta (gen)};
+
+        auto paths = policy.candidates (s1, s2);
+        if (!paths.empty ())
+        {
+            policy.ensureStates (s1, paths[0]);
+            EXPECT_TRUE (paths[0].states.has_value ());
+            EXPECT_FALSE (paths[0].states->empty ());
+        }
+    }
+}

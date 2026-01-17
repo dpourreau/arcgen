@@ -311,3 +311,47 @@ TEST_F (GreedyConnectorFixture, SmoothingFindsShortcut)
         len += std::sqrt (std::pow (path[i].x - path[i - 1].x, 2) + std::pow (path[i].y - path[i - 1].y, 2));
     EXPECT_LT (len, 8.0); // Should be around 5.0
 }
+
+/// @brief Explicitly test the cost comparison branch in findShortcut by providing a shortcut that is marginally worse.
+TEST_F (GreedyConnectorFixture, SmoothingLoopCoverage)
+{
+    // Coarse: 0 -> 4 -> 8. Initial cost 4+4=8.
+    State start{0, 0, 0};
+    State wp{4, 0, 0};
+    State goal{8, 0, 0};
+
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 4, 4.0);
+    steering_.addCandidate (4, 8, 4.0);
+
+    // 1. Beneficial Shortcut: 0 -> 8 with cost 5 (Gain 3)
+    steering_.addCandidate (0, 8, 5.0);
+
+    GreedyConnector<MockGreedySteering> cx_good (1.0, 1, 3);
+    auto p_good = cx_good.connect (*evaluator_, start, goal, {wp});
+    ASSERT_FALSE (p_good.empty ());
+    // Should be length ~5 (0->8)
+    // We check straight line distance approx
+    double len_good = 0;
+    for (size_t i = 1; i < p_good.size (); ++i)
+        len_good += std::hypot (p_good[i].x - p_good[i - 1].x, p_good[i].y - p_good[i - 1].y);
+    EXPECT_NEAR (len_good, 5.0, 0.5);
+
+    // 2. Rejectable Shortcut: 0 -> 8 with cost 7.95 (Gain 0.05).
+    // Default tolerance is 5.0 (VERY HIGH by default in arcgen/core/numeric.hpp?), wait, let's check constructor default.
+    // user provided: double costImprovementTol = arcgen::core::GREEDY_COST_IMPROVEMENT_TOL
+    // Let's force a high tolerance to ensure rejection.
+
+    steering_.addCandidate (0, 8, 7.9); // Better than 8.0 by 0.1
+
+    // Tolerance 0.5 -> Should reject improvement of 0.1
+    GreedyConnector<MockGreedySteering> cx_bad (1.0, 1, 3, 0.001, 0.5);
+    auto p_bad = cx_bad.connect (*evaluator_, start, goal, {wp});
+    ASSERT_FALSE (p_bad.empty ());
+
+    double len_bad = 0;
+    for (size_t i = 1; i < p_bad.size (); ++i)
+        len_bad += std::hypot (p_bad[i].x - p_bad[i - 1].x, p_bad[i].y - p_bad[i - 1].y);
+    // Should be original cost 8.0 because 7.9 is not enough improvement vs tolerance 0.5
+    EXPECT_NEAR (len_bad, 8.0, 0.5);
+}
