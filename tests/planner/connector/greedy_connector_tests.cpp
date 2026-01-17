@@ -123,6 +123,31 @@ TEST_F (GreedyConnectorFixture, CustomConfiguration)
     EXPECT_NO_THROW (ConnectorType (3.0, 3, 3, 1e-3, 0.05));
 }
 
+/// @brief Test constructor boundary conditions to ensure all validation branches are covered.
+TEST_F (GreedyConnectorFixture, ConstructorBoundaryConditions)
+{
+    // Test resampleInterval exactly equal to minResampleInterval (passes per implementation, < not <=)
+    double minResample = 0.5;
+    EXPECT_NO_THROW (ConnectorType (minResample, 3, 3, minResample));
+
+    // Test resampleInterval just below minResampleInterval (should throw)
+    EXPECT_THROW (ConnectorType (minResample - 1e-9, 3, 3, minResample), std::invalid_argument);
+
+    // Test lookaheadMatches = 1 (minimum valid value)
+    EXPECT_NO_THROW (ConnectorType (1.0, 3, 1));
+
+    // Test maxIterations = 0 (should be valid, no smoothing performed)
+    EXPECT_NO_THROW (ConnectorType (1.0, 0, 1));
+
+    // Verify getters work correctly
+    ConnectorType cx (2.5, 5, 4, 0.01, 0.25);
+    EXPECT_DOUBLE_EQ (cx.getResampleInterval (), 2.5);
+    EXPECT_EQ (cx.getMaxIterations (), 5u);
+    EXPECT_EQ (cx.getLookaheadMatches (), 4u);
+    EXPECT_DOUBLE_EQ (cx.getMinResampleInterval (), 0.01);
+    EXPECT_DOUBLE_EQ (cx.getCostImprovementTol (), 0.25);
+}
+
 /// @brief Verify connection failure/warning for direct 2-point connections (known limitation).
 TEST_F (GreedyConnectorFixture, BasicConnection)
 {

@@ -48,7 +48,7 @@ namespace arcgen::planner::connector
          *                             Must be at least 1. Default is 3.
          * @param minResampleInterval  Minimum allowed resample interval (default: core::GREEDY_MIN_RESAMPLE_INTERVAL).
          * @param costImprovementTol   Minimum cost improvement to accept a shortcut (default: core::GREEDY_COST_IMPROVEMENT_TOL).
-         * @throws std::invalid_argument if resampleInterval <= minResampleInterval or lookaheadMatches < 1.
+         * @throws std::invalid_argument if resampleInterval < minResampleInterval or lookaheadMatches < 1.
          */
         explicit GreedyConnector (double resampleInterval = 3, unsigned int maxIterations = 3, unsigned int lookaheadMatches = 3,
                                   double minResampleInterval = arcgen::core::GREEDY_MIN_RESAMPLE_INTERVAL, double costImprovementTol = arcgen::core::GREEDY_COST_IMPROVEMENT_TOL)
@@ -56,7 +56,7 @@ namespace arcgen::planner::connector
               costImprovementTol_ (costImprovementTol)
         {
             if (resampleInterval_ < minResampleInterval_)
-                throw std::invalid_argument ("GreedyConnector: resampleInterval must be > minResampleInterval");
+                throw std::invalid_argument ("GreedyConnector: resampleInterval must be >= minResampleInterval");
             // maxIterations is unsigned, so >= 0 is always true.
             if (lookaheadMatches_ < 1)
                 throw std::invalid_argument ("GreedyConnector: lookaheadMatches must be >= 1");
