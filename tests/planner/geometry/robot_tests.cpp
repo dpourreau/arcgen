@@ -26,7 +26,6 @@ namespace bg = boost::geometry;
  */
 class RobotFixture : public ::testing::Test
 {
-
 };
 
 /**

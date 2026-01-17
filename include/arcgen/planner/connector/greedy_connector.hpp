@@ -526,8 +526,7 @@ namespace arcgen::planner::connector
          * @param costMap Map of steering ID to cost.
          * @return Vector of SegmentView structs.
          */
-        std::vector<SegmentView> buildSegments (const std::vector<std::size_t> &indices, const std::vector<int64_t> &ids,
-                                                      const std::unordered_map<int64_t, double> &costMap) const
+        std::vector<SegmentView> buildSegments (const std::vector<std::size_t> &indices, const std::vector<int64_t> &ids, const std::unordered_map<int64_t, double> &costMap) const
         {
             std::vector<SegmentView> segments;
             if (indices.empty ())

@@ -16,8 +16,8 @@
 #include <numeric>
 #include <optional>
 #include <span>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include <arcgen/core/control.hpp>
 #include <arcgen/core/math.hpp>
@@ -27,11 +27,11 @@
 
 namespace arcgen::steering
 {
-    using arcgen::core::Control;
-    using arcgen::core::State;
-    using arcgen::core::normalizeAngleSigned;
     using arcgen::core::computeArcEndpoint;
     using arcgen::core::computeLineEndpoint;
+    using arcgen::core::Control;
+    using arcgen::core::normalizeAngleSigned;
+    using arcgen::core::State;
 
     template <class, std::size_t> class SteeringBase;
 

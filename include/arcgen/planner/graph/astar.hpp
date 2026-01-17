@@ -139,10 +139,8 @@ namespace arcgen::planner::graph
             catch (const GoalFound &)
             {
                 // Success: goal reached.
-            }
-            catch (const std::exception &)
-            {
-                return {};
+                // Boost.Graph's A* implementation requires throwing an exception to Stop/Exit early.
+                // This is the intended control flow for this algorithm.
             }
 
             if (distance[index[vGoal]] == std::numeric_limits<double>::max ())

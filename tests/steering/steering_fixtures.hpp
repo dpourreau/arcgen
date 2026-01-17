@@ -20,8 +20,8 @@
 #include <string>
 #include <vector>
 
-using arcgen::core::State;
 using arcgen::core::DrivingDirection;
+using arcgen::core::State;
 using arcgen::steering::Dubins;
 using arcgen::steering::ReedsShepp;
 
@@ -46,21 +46,21 @@ template <> struct GenName<ReedsShepp>
 };
 
 /* ───────── utilities ───────── */
-    [[nodiscard]] inline double euclidean (const State &a, const State &b) noexcept
-    {
-        const double dx = a.x - b.x;
-        const double dy = a.y - b.y;
-        return std::sqrt (dx * dx + dy * dy);
-    }
-    [[nodiscard]] inline double polylineLength (std::span<const State> pts)
-    {
-        if (pts.size () < 2)
-            return 0.0;
-        double L = 0.0;
-        for (std::size_t i = 1; i < pts.size (); ++i)
-            L += euclidean (pts[i - 1], pts[i]);
-        return L;
-    }
+[[nodiscard]] inline double euclidean (const State &a, const State &b) noexcept
+{
+    const double dx = a.x - b.x;
+    const double dy = a.y - b.y;
+    return std::sqrt (dx * dx + dy * dy);
+}
+[[nodiscard]] inline double polylineLength (std::span<const State> pts)
+{
+    if (pts.size () < 2)
+        return 0.0;
+    double L = 0.0;
+    for (std::size_t i = 1; i < pts.size (); ++i)
+        L += euclidean (pts[i - 1], pts[i]);
+    return L;
+}
 
 /**
  * @brief Typed fixture for steering generators (property + timing).

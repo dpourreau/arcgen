@@ -29,12 +29,12 @@
 
 #include <algorithm>
 #include <concepts>
+#include <expected>
 #include <memory>
 #include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <expected>
 
 namespace bg = boost::geometry;
 
@@ -64,9 +64,9 @@ namespace arcgen::planner::engine
     struct StringHash
     {
         using is_transparent = void;
-        [[nodiscard]] std::size_t operator() (std::string_view txt) const noexcept { return std::hash<std::string_view>{} (txt); }
-        [[nodiscard]] std::size_t operator() (const std::string &txt) const noexcept { return std::hash<std::string>{} (txt); }
-        [[nodiscard]] std::size_t operator() (const char *txt) const noexcept { return std::hash<std::string_view>{} (txt); }
+        [[nodiscard]] std::size_t operator() (std::string_view txt) const noexcept { return std::hash<std::string_view>{}(txt); }
+        [[nodiscard]] std::size_t operator() (const std::string &txt) const noexcept { return std::hash<std::string>{}(txt); }
+        [[nodiscard]] std::size_t operator() (const char *txt) const noexcept { return std::hash<std::string_view>{}(txt); }
     };
 
     /**

@@ -79,9 +79,9 @@ Most editors can be configured to run `clang-format` on save. Keep diffs focused
 - For geometry: ensure polygons are CCW and closed; call `boost::geometry::correct()` where appropriate.
 - Prefer explicit units and clarify geometric frames (e.g., body-frame vs world-frame) in comments.
 
-## Safe Coding Standards (MISRA C++23)
+## Safe Coding Standards (Sonar Way)
 
-ArcGen prioritizes safety and reliability. We follow MISRA C++23 guidelines where applicable, enforced via SonarCloud.
+ArcGen prioritizes safety and reliability. The "Sonar Way" guidelines are enforced via SonarCloud.
 
 ### Key Rules
 - **Namespace Pollution (cpp:S1003)**: Never use `using namespace` in header files. Fully qualify types or use type aliases within a class/function scope.

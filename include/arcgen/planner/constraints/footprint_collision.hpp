@@ -76,18 +76,12 @@ namespace arcgen::planner::constraints
         /**
          * @brief Check if a state is effectively straight (curvature near zero).
          */
-        static bool isStraight (const State &s, double tol)
-        {
-            return std::fabs (s.curvature) <= tol;
-        }
+        static bool isStraight (const State &s, double tol) { return std::fabs (s.curvature) <= tol; }
 
         /**
          * @brief Check if a single state is safe.
          */
-        static bool checkState (const Workspace &ws, const Robot &robot, const State &s)
-        {
-            return ws.coveredBy (robot.at (s));
-        }
+        static bool checkState (const Workspace &ws, const Robot &robot, const State &s) { return ws.coveredBy (robot.at (s)); }
 
         /**
          * @brief Check a range of states individually.

@@ -37,7 +37,10 @@ namespace
             int g = static_cast<int> (std::round (goal.x));
             if (storedCandidates.count ({s, g}))
             {
-                return storedCandidates[{s, g}];
+                auto paths = storedCandidates[{s, g}];
+                for (const auto &p : paths)
+                    ensureStates (start, p);
+                return paths;
             }
             return {};
         }
@@ -48,7 +51,7 @@ namespace
             {
                 path.states = std::vector<State> ();
                 double len = path.length ();
-                int n = static_cast<int> (std::ceil (len)); // 1 state per meter roughly
+                int n = static_cast<int> (std::ceil (len) * 10); // 10 states per meter for better resolution
                 if (n < 2)
                     n = 2;
 
@@ -70,6 +73,12 @@ namespace
         }
     };
 
+    struct MockLengthConstraint : public SoftConstraint<MockGreedySteering::kSegments>
+    {
+        double cost (const Path<MockGreedySteering::kSegments> &cand, const EvalContext<MockGreedySteering::kSegments> &) const noexcept override { return cand.length (); }
+        std::string name () const override { return "MockLength"; }
+    };
+
     /// @brief Test fixture for GreedyConnector.
     class GreedyConnectorFixture : public ::testing::Test
     {
@@ -86,6 +95,7 @@ namespace
 
         void SetUp () override
         {
+            constraints_.soft.emplace_back (std::make_shared<MockLengthConstraint> (), 1.0);
             evaluator_ = std::make_unique<EvaluatorType> (&steering_, &constraints_);
             connector_ = std::make_unique<ConnectorType> ();
         }
@@ -253,4 +263,51 @@ TEST_F (GreedyConnectorFixture, EdgeCases)
     // No candidate 5->10
     auto p3 = connector_->connect (*evaluator_, start, goal, {A});
     EXPECT_TRUE (p3.empty ());
+}
+
+/// @brief Verify smoothing finds a shortcut that originates from a mid-segment point (not a coarse waypoint).
+/// This forces the connector to use the resampled points for optimization, covering 'stitchLocal' logic.
+TEST_F (GreedyConnectorFixture, SmoothingFindsShortcut)
+{
+    // Coarse: 0 -> 6 -> 12.
+    // Initial segments: 0->6 (cost 6), 6->12 (cost 6). Total 12.
+    // Shortcut available from x=3 to x=12 with cost 2.
+    // Improvement: (3->6 cost 3 + 6->12 cost 6) = 9 vs (3->12 cost 2) = 2. Gain = 7.
+
+    State start{0, 0, 0};
+    State wp{6, 0, 0};
+    State goal{12, 0, 0};
+
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 6, 6.0);
+    steering_.addCandidate (6, 12, 6.0);
+    // Shortcut from 3 to 12.
+    // MockCandidates rounds coordinates to int, so 3.0 -> 3, 12.0 -> 12.
+    steering_.addCandidate (3, 12, 2.0);
+
+    MockDebug dbg;
+    // resampleInterval=1.0 ensures we get a point at x=3.0
+    GreedyConnector<MockGreedySteering, MockDebug> cx (1.0, 3, 3);
+
+    auto path = cx.connect (*evaluator_, start, goal, {wp}, &dbg);
+
+    ASSERT_FALSE (path.empty ());
+
+    // Check history for "Smoothing Iteration"
+    bool smoothed = false;
+    for (const auto &s : dbg.history)
+    {
+        if (s.name.find ("Smoothing") != std::string::npos)
+            smoothed = true;
+    }
+    EXPECT_TRUE (smoothed) << "Smoothing should have been triggered by the mid-segment shortcut.";
+
+    // Verify total cost (approx 0->3 cost 3 + 3->12 cost 2 = 5)
+    // The path states might be complex due to resampling, but the last points should come from the shortcut.
+    // We expect the path to be significantly shorter than 12.
+    // We can check the mock debug stats if we trust them, or just length.
+    double len = 0.0;
+    for (size_t i = 1; i < path.size (); ++i)
+        len += std::sqrt (std::pow (path[i].x - path[i - 1].x, 2) + std::pow (path[i].y - path[i - 1].y, 2));
+    EXPECT_LT (len, 8.0); // Should be around 5.0
 }
