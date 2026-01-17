@@ -182,8 +182,8 @@ TEST (ReedsSheppCoverage, BoundaryValueCoverage)
     std::vector<double> radii = {0.5, 1.0, 2.0, 3.0, 5.0};
 
     std::mt19937 rng (99999);
-    std::uniform_real_distribution<double> smallAngle (-0.1, 0.1);
-    std::uniform_real_distribution<double> halfPi (std::numbers::pi / 2 - 0.1, std::numbers::pi / 2 + 0.1);
+    std::uniform_real_distribution smallAngle (-0.1, 0.1);
+    std::uniform_real_distribution halfPi (std::numbers::pi / 2 - 0.1, std::numbers::pi / 2 + 0.1);
 
     for (double r : radii)
     {
@@ -203,5 +203,122 @@ TEST (ReedsSheppCoverage, BoundaryValueCoverage)
             (void)p1;
             (void)p2;
         }
+    }
+}
+
+/**
+ * @brief Systematic grid over all quadrants and heading directions.
+ *
+ * Exercises all symmetry variants of each geometric primitive family.
+ */
+TEST (ReedsSheppCoverage, SymmetryGridCoverage)
+{
+    ReedsShepp policy (1.5, 0.05);
+
+    // Test all four quadrants with varying headings
+    std::vector<double> xVals = {-3.0, -1.5, 0.0, 1.5, 3.0};
+    std::vector<double> yVals = {-3.0, -1.5, 0.0, 1.5, 3.0};
+    std::vector<double> headings = {-std::numbers::pi, -std::numbers::pi / 2, 0.0, std::numbers::pi / 2, std::numbers::pi};
+
+    for (double x : xVals)
+    {
+        for (double y : yVals)
+        {
+            for (double h : headings)
+            {
+                State goal{x, y, h};
+                auto paths = policy.getArcs (State{0, 0, 0}, goal);
+                // Just exercise the code, don't assert on results
+                (void)paths;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Test configurations that stress the angle tolerance boundaries.
+ *
+ * Tests near-zero and near-pi angles to hit normalizeAngle edge cases.
+ */
+TEST (ReedsSheppCoverage, AngleBoundaryCoverage)
+{
+    ReedsShepp policy (2.0, 0.05);
+
+    double eps = 1e-6;
+    std::vector<double> angBoundaries = {
+        -std::numbers::pi + eps,
+        -std::numbers::pi,
+        -std::numbers::pi - eps,
+        -std::numbers::pi / 2 + eps,
+        -std::numbers::pi / 2,
+        -std::numbers::pi / 2 - eps,
+        0.0,
+        eps,
+        -eps,
+        std::numbers::pi / 2 + eps,
+        std::numbers::pi / 2,
+        std::numbers::pi / 2 - eps,
+        std::numbers::pi - eps,
+        std::numbers::pi,
+        std::numbers::pi + eps,
+        2 * std::numbers::pi,
+        -2 * std::numbers::pi,
+    };
+
+    for (double h : angBoundaries)
+    {
+        // Forward
+        auto p1 = policy.getArcs (State{0, 0, 0}, State{3, 0, h});
+        // Lateral
+        auto p2 = policy.getArcs (State{0, 0, 0}, State{0, 3, h});
+        // Diagonal
+        auto p3 = policy.getArcs (State{0, 0, 0}, State{2, 2, h});
+        // Reverse
+        auto p4 = policy.getArcs (State{0, 0, 0}, State{-3, 0, h});
+
+        (void)p1;
+        (void)p2;
+        (void)p3;
+        (void)p4;
+    }
+}
+
+/**
+ * @brief Test the CCCC and CCSCC families specifically.
+ *
+ * These require specific geometric conditions that are harder to hit randomly.
+ */
+TEST (ReedsSheppCoverage, CuspFamilyCoverage)
+{
+    // Use unit radius for easier calculation
+    ReedsShepp policy (1.0, 0.05);
+
+    // CCCC family: requires ρ = 0.25 * (2 + hypot(ξ, η)) <= 1.0
+    // This means hypot(ξ, η) <= 2.0
+    // With ξ = x + sin(φ), η = y - 1 - cos(φ)
+
+    std::vector<std::pair<State, std::string>> cuspConfigs = {
+        // Near the CCCC feasibility boundary
+        {{0.5, 0.5, std::numbers::pi}, "cccc-1"},
+        {{0.3, 0.3, std::numbers::pi * 0.9}, "cccc-2"},
+        {{0.7, 0.2, std::numbers::pi * 0.8}, "cccc-3"},
+        {{0.4, -0.4, -std::numbers::pi * 0.9}, "cccc-4"},
+
+        // CCSCC family: requires ρ >= 2.0 and u <= tol
+        {{3.0, 1.0, 0.5}, "ccscc-1"},
+        {{2.5, 0.5, 0.3}, "ccscc-2"},
+        {{4.0, 2.0, std::numbers::pi / 3}, "ccscc-3"},
+
+        // Mixed configurations hitting multiple families
+        {{1.0, 2.0, std::numbers::pi / 2}, "mixed-1"},
+        {{-1.0, 2.0, std::numbers::pi / 2}, "mixed-2"},
+        {{2.0, -1.0, -std::numbers::pi / 4}, "mixed-3"},
+    };
+
+    for (const auto &[goal, label] : cuspConfigs)
+    {
+        auto paths = policy.getArcs (State{0, 0, 0}, goal);
+        (void)label;
+        (void)paths;
     }
 }

@@ -380,3 +380,145 @@ TEST_F (GreedyConnectorFixture, SmoothingLoopCoverage)
     // Should be original cost 8.0 because 7.9 is not enough improvement vs tolerance 0.5
     EXPECT_NEAR (len_bad, 8.0, 0.5);
 }
+
+/// @brief Test multiple smoothing iterations to cover iteration loop branches.
+TEST_F (GreedyConnectorFixture, MultipleIterationSmoothing)
+{
+    // Create a path that requires multiple smoothing iterations
+    // 0 -> 3 -> 6 -> 9 -> 12
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 3, 3.0);
+    steering_.addCandidate (3, 6, 3.0);
+    steering_.addCandidate (6, 9, 3.0);
+    steering_.addCandidate (9, 12, 3.0);
+
+    // Shortcuts available at different levels - make them significantly better
+    steering_.addCandidate (0, 6, 4.0);  // Skip 3: cost 4 vs 6
+    steering_.addCandidate (6, 12, 4.0); // Skip 9: cost 4 vs 6
+    steering_.addCandidate (0, 12, 8.0); // Full skip: cost 8 vs 12
+
+    State start{0, 0, 0};
+    std::vector<State> wps = {{3, 0, 0}, {6, 0, 0}, {9, 0, 0}};
+    State goal{12, 0, 0};
+
+    MockDebug dbg;
+    // maxIterations = 5 to allow multiple passes, low tolerance for improvements
+    GreedyConnector<MockGreedySteering, MockDebug> cx (1.0, 5, 3, 0.001, 0.01);
+
+    auto path = cx.connect (*evaluator_, start, goal, wps, &dbg);
+    ASSERT_FALSE (path.empty ());
+
+    // Verify debug info was populated - this exercises the logging code paths
+    EXPECT_FALSE (dbg.history.empty ());
+
+    // Check initial stitch happened
+    bool hasInitialStitch = false;
+    for (const auto &s : dbg.history)
+    {
+        if (s.name.contains ("Initial"))
+            hasInitialStitch = true;
+    }
+    EXPECT_TRUE (hasInitialStitch);
+
+    // Check component times were recorded
+    EXPECT_TRUE (dbg.componentTimes.count ("Total Connection") > 0 || dbg.componentTimes.count ("Smoothing") > 0);
+}
+
+/// @brief Test with zero smoothing iterations (maxIterations = 0).
+TEST_F (GreedyConnectorFixture, NoSmoothingIterations)
+{
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 5, 5.0);
+    steering_.addCandidate (5, 10, 5.0);
+
+    State start{0, 0, 0};
+    State wp{5, 0, 0};
+    State goal{10, 0, 0};
+
+    MockDebug dbg;
+    // maxIterations = 0 means no smoothing
+    GreedyConnector<MockGreedySteering, MockDebug> cx (1.0, 0, 1);
+
+    auto path = cx.connect (*evaluator_, start, goal, {wp}, &dbg);
+    ASSERT_FALSE (path.empty ());
+
+    // Verify only initial stitch, no smoothing
+    int smoothingCount = 0;
+    for (const auto &s : dbg.history)
+    {
+        if (s.name.contains ("Smoothing"))
+            smoothingCount++;
+    }
+    EXPECT_EQ (smoothingCount, 0);
+    EXPECT_EQ (dbg.smoothingIterations, 0);
+}
+
+/// @brief Test with nullptr debug info to exercise the non-debug path.
+TEST_F (GreedyConnectorFixture, NullDebugInfo)
+{
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 5, 5.0);
+    steering_.addCandidate (5, 10, 5.0);
+
+    State start{0, 0, 0};
+    State wp{5, 0, 0};
+    State goal{10, 0, 0};
+
+    // Use DebugInfo template but pass nullptr
+    GreedyConnector<MockGreedySteering, MockDebug> cx (1.0, 3, 3);
+    auto path = cx.connect (*evaluator_, start, goal, {wp}, nullptr);
+
+    ASSERT_FALSE (path.empty ());
+    EXPECT_NEAR (path.front ().x, 0.0, 1e-9);
+    EXPECT_NEAR (path.back ().x, 10.0, 1e-9);
+}
+
+/// @brief Test assignHeadings with duplicate/coincident points.
+TEST_F (GreedyConnectorFixture, AssignHeadingsEdgeCases)
+{
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 0, 0.001); // Very short path
+    steering_.addCandidate (0, 5, 5.0);
+    steering_.addCandidate (5, 5, 0.001); // Duplicate
+    steering_.addCandidate (5, 10, 5.0);
+
+    State start{0, 0, 0};
+    // Duplicate waypoints - tests assignHeadings with near-zero distances
+    std::vector<State> wps = {{0.001, 0, 0}, {5, 0, 0}, {5.001, 0, 0}};
+    State goal{10, 0, 0};
+
+    MockDebug dbg;
+    GreedyConnector<MockGreedySteering, MockDebug> cx (0.5, 3, 3);
+
+    auto path = cx.connect (*evaluator_, start, goal, wps, &dbg);
+    // Path may or may not succeed due to duplicate handling, but shouldn't crash
+    // Just verify no exception thrown
+    SUCCEED ();
+}
+
+/// @brief Test single waypoint case (minimal coarse path).
+TEST_F (GreedyConnectorFixture, SingleWaypoint)
+{
+    steering_.storedCandidates.clear ();
+    steering_.addCandidate (0, 5, 5.0);
+    steering_.addCandidate (5, 10, 5.0);
+
+    State start{0, 0, 0};
+    State wp{5, 0, 0};
+    State goal{10, 0, 0};
+
+    MockDebug dbg;
+    GreedyConnector<MockGreedySteering, MockDebug> cx (1.0, 3, 1); // lookahead = 1
+
+    auto path = cx.connect (*evaluator_, start, goal, {wp}, &dbg);
+    ASSERT_FALSE (path.empty ());
+
+    // Check that debug history has at least initial stitch
+    bool hasInitialStitch = false;
+    for (const auto &s : dbg.history)
+    {
+        if (s.name.contains ("Initial"))
+            hasInitialStitch = true;
+    }
+    EXPECT_TRUE (hasInitialStitch);
+}
