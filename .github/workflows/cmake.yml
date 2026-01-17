@@ -30,7 +30,7 @@ jobs:
     - name: Generate Coverage Report
       run: |
         pip install gcovr
-        gcovr -r . --xml -o coverage.xml --exclude-directories "tests|build/coverage/_deps"
+        gcovr -r . --sonarqube -o coverage.xml --exclude-directories "tests|build/coverage/_deps"
 
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v5.0.0
