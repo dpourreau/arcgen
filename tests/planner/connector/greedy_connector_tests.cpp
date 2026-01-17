@@ -51,14 +51,14 @@ namespace
             {
                 path.states = std::vector<State> ();
                 double len = path.length ();
-                int n = static_cast<int> (std::ceil (len) * 10); // 10 states per meter for better resolution
+                auto n = static_cast<int> (std::ceil (len) * 10); // 10 states per meter for better resolution
                 if (n < 2)
                     n = 2;
 
                 for (int i = 0; i < n; ++i)
                 {
                     double t = static_cast<double> (i) / (n - 1);
-                    (void)t; // Suppress unused var check if simple logic
+                    (void)t;
                     path.states->push_back ({start.x + t * len, 0, 0});
                 }
             }
@@ -84,7 +84,7 @@ namespace
     {
       protected:
         static constexpr std::size_t N = MockGreedySteering::kSegments;
-        using ConnectorType = GreedyConnector<MockGreedySteering, void>; // Void debug info
+        using ConnectorType = GreedyConnector<MockGreedySteering, void>;
         using ConstraintSetType = ConstraintSet<N>;
         using EvaluatorType = Evaluator<MockGreedySteering>;
 
@@ -228,7 +228,7 @@ TEST_F (GreedyConnectorFixture, Smoothing)
     bool smoothed = false;
     for (const auto &s : dbg.history)
     {
-        if (s.name.find ("Smoothing") != std::string::npos)
+        if (s.name.contains ("Smoothing"))
             smoothed = true;
     }
     EXPECT_TRUE (smoothed);
@@ -297,7 +297,7 @@ TEST_F (GreedyConnectorFixture, SmoothingFindsShortcut)
     bool smoothed = false;
     for (const auto &s : dbg.history)
     {
-        if (s.name.find ("Smoothing") != std::string::npos)
+        if (s.name.contains ("Smoothing"))
             smoothed = true;
     }
     EXPECT_TRUE (smoothed) << "Smoothing should have been triggered by the mid-segment shortcut.";

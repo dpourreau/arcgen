@@ -19,8 +19,8 @@ TEST (ReedsSheppSpecific, MassiveRandomCoverage)
     // and cover all geometric primitive branches (success/fail).
     ReedsShepp gen (3.0, 0.1); // rMin=3.0
     std::mt19937 rng (12345);
-    std::uniform_real_distribution<> pos (-20.0, 20.0);
-    std::uniform_real_distribution<> ang (0.0, arcgen::core::two_pi);
+    std::uniform_real_distribution pos (-20.0, 20.0);
+    std::uniform_real_distribution ang (0.0, arcgen::core::two_pi);
 
     const int iterations = 5000;
     for (int k = 0; k < iterations; ++k)
@@ -30,11 +30,10 @@ TEST (ReedsSheppSpecific, MassiveRandomCoverage)
         auto path = gen.shortestPath (start, goal);
 
         // Basic sanity checks
-        if (!path.states || path.states->empty ())
+        // Should always find a path for Reeds-Shepp, unless identity (start==goal)
+        if ((!path.states || path.states->empty ()) && euclidean (start, goal) > 1e-6)
         {
-            // Should always find a path for Reeds-Shepp
-            if (euclidean (start, goal) > 1e-6) // Ignore identity
-                FAIL () << "Failed to find path for random pair";
+            FAIL () << "Failed to find path for random pair";
         }
     }
 }
