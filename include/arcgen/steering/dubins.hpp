@@ -86,31 +86,27 @@ namespace arcgen::steering
                 return paths;
             }
 
-            const double ca = std::cos (a), sa = std::sin (a);
-            const double cb = std::cos (b), sb = std::sin (b);
+            const double ca = std::cos (a);
+            const double sa = std::sin (a);
+            const double cb = std::cos (b);
+            const double sb = std::sin (b);
 
-            auto lsl = LSL (d, a, b, ca, sa, cb, sb);
-            if (lsl)
+            if (auto lsl = LSL (d, a, b, ca, sa, cb, sb); lsl)
                 paths.push_back (*lsl);
 
-            auto rsr = RSR (d, a, b, ca, sa, cb, sb);
-            if (rsr)
+            if (auto rsr = RSR (d, a, b, ca, sa, cb, sb); rsr)
                 paths.push_back (*rsr);
 
-            auto rsl = RSL (d, a, b, ca, sa, cb, sb);
-            if (rsl)
+            if (auto rsl = RSL (d, a, b, ca, sa, cb, sb); rsl)
                 paths.push_back (*rsl);
 
-            auto lsr = LSR (d, a, b, ca, sa, cb, sb);
-            if (lsr)
+            if (auto lsr = LSR (d, a, b, ca, sa, cb, sb); lsr)
                 paths.push_back (*lsr);
 
-            auto rlr = RLR (d, a, b, ca, sa, cb, sb);
-            if (rlr)
+            if (auto rlr = RLR (d, a, b, ca, sa, cb, sb); rlr)
                 paths.push_back (*rlr);
 
-            auto lrl = LRL (d, a, b, ca, sa, cb, sb);
-            if (lrl)
+            if (auto lrl = LRL (d, a, b, ca, sa, cb, sb); lrl)
                 paths.push_back (*lrl);
 
             std::sort (paths.begin (), paths.end (), [this] (const auto &pathA, const auto &pathB) { return this->shorter (pathA, pathB); });
@@ -144,8 +140,7 @@ namespace arcgen::steering
         [[nodiscard]] constexpr std::optional<DubinsPath> LSL (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sa - sb));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sa - sb)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double th = std::atan2 (cb - ca, d + sa - sb);
                 const double t = arcgen::core::normalizeAngle2Pi (-a + th);
@@ -159,8 +154,7 @@ namespace arcgen::steering
         [[nodiscard]] constexpr std::optional<DubinsPath> RSR (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sb - sa));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sb - sa)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double th = std::atan2 (ca - cb, d - sa + sb);
                 const double t = arcgen::core::normalizeAngle2Pi (a - th);
@@ -174,8 +168,7 @@ namespace arcgen::steering
         [[nodiscard]] constexpr std::optional<DubinsPath> RSL (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = d * d - 2. + 2. * (ca * cb + sa * sb - d * (sa + sb));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = d * d - 2. + 2. * (ca * cb + sa * sb - d * (sa + sb)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double p = std::sqrt (std::max (tmp, 0.0));
                 const double th = std::atan2 (ca + cb, d - sa - sb) - std::atan2 (2.0, p);
@@ -189,8 +182,7 @@ namespace arcgen::steering
         [[nodiscard]] constexpr std::optional<DubinsPath> LSR (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = -2. + d * d + 2. * (ca * cb + sa * sb + d * (sa + sb));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = -2. + d * d + 2. * (ca * cb + sa * sb + d * (sa + sb)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double p = std::sqrt (std::max (tmp, 0.0));
                 const double th = std::atan2 (-ca - cb, d + sa + sb) - std::atan2 (-2.0, p);
@@ -204,8 +196,7 @@ namespace arcgen::steering
         [[nodiscard]] constexpr std::optional<DubinsPath> RLR (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb + d * (sa - sb)));
-            if (std::fabs (tmp) < 1.0)
+            if (const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb + d * (sa - sb))); std::fabs (tmp) < 1.0)
             {
                 const double p = 2. * std::numbers::pi - std::acos (tmp);
                 const double th = std::atan2 (ca - cb, d - sa + sb);
@@ -219,8 +210,7 @@ namespace arcgen::steering
         [[nodiscard]] constexpr std::optional<DubinsPath> LRL (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb - d * (sa - sb)));
-            if (std::fabs (tmp) < 1.0)
+            if (const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb - d * (sa - sb))); std::fabs (tmp) < 1.0)
             {
                 const double p = 2. * std::numbers::pi - std::acos (tmp);
                 const double th = std::atan2 (-ca + cb, d + sa - sb);

@@ -40,14 +40,15 @@ namespace arcgen::core
          * @brief Set #direction from the sign of a scalar (e.g., arc length).
          * @param value A signed quantity; >0 ⇒ Forward, <0 ⇒ Reverse, 0 ⇒ Neutral.
          */
-        inline constexpr void setDirectionFrom (double value) noexcept
+        constexpr void setDirectionFrom (double value) noexcept
         {
+            using enum arcgen::core::DrivingDirection;
             if (value > 0.0)
-                direction = DrivingDirection::Forward;
+                direction = Forward;
             else if (value < 0.0)
-                direction = DrivingDirection::Reverse;
+                direction = Reverse;
             else
-                direction = DrivingDirection::Neutral;
+                direction = Neutral;
         }
     };
 

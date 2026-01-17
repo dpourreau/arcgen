@@ -103,10 +103,7 @@ namespace arcgen::planner::geometry
          */
         [[nodiscard]] bool contains (const std::vector<State> &path) const
         {
-            for (const auto &s : path)
-                if (!contains (s.x, s.y))
-                    return false;
-            return true;
+            return std::ranges::all_of (path, [this] (const auto &s) { return contains (s.x, s.y); });
         }
 
         /**

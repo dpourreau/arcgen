@@ -183,7 +183,7 @@ namespace arcgen::steering
             if (all.empty ())
                 return {};
 
-            auto it = std::min_element (all.begin (), all.end (), [] (const Path<N> &L, const Path<N> &R) { return L.length () < R.length (); });
+            auto it = std::ranges::min_element (all, [] (const Path<N> &L, const Path<N> &R) { return L.length () < R.length (); });
 
             if (!it->states)
                 it->states = integrate (a, it->controls.view ());

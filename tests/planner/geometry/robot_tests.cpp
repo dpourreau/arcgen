@@ -26,7 +26,7 @@ namespace bg = boost::geometry;
  */
 class RobotFixture : public ::testing::Test
 {
-  protected:
+
 };
 
 /**
@@ -83,7 +83,7 @@ TEST_F (RobotFixture, Ellipse)
         const double dxDt = -semiMajor * std::sin (t);
         const double dyDt = semiMinor * std::cos (t);
         const double heading = std::atan2 (dyDt, dxDt);
-        states.push_back (State{x, y, heading});
+        states.emplace_back (x, y, heading);
     }
 
     // Evaluate all robots on the same ellipse path
@@ -167,8 +167,10 @@ TEST_F (RobotFixture, HalfTurnVShape)
     // 1) Forward, turning right around C1 (−r,0): t from pi → 0 (clockwise, upper half)
     // 2) Reverse, turning left around C2 (+r,0): t from pi → 2π (counter-clockwise, upper half but reversed)
     const double radius = 6.0;
-    const double centerX1 = -radius, centerY1 = 0.0;
-    const double centerX2 = +radius, centerY2 = 0.0;
+    const double centerX1 = -radius;
+    const double centerY1 = 0.0;
+    const double centerX2 = +radius;
+    const double centerY2 = 0.0;
 
     std::vector<State> states;
     const int sampleCount = 180; // samples across both halves
@@ -181,7 +183,7 @@ TEST_F (RobotFixture, HalfTurnVShape)
         const double x = centerX1 + radius * std::cos (t);
         const double y = centerY1 + radius * std::sin (t);
         const double heading = t - PI / 2.0; // clockwise tangent (forward)
-        states.push_back (State{x, y, heading});
+        states.emplace_back (x, y, heading);
     }
 
     // Second half: reverse-left around C2; traverse the UPPER semicircle pi → 0 (clockwise geometry),
@@ -192,7 +194,7 @@ TEST_F (RobotFixture, HalfTurnVShape)
         const double x = centerX2 + radius * std::cos (t);
         const double y = centerY2 + radius * std::sin (t);
         const double heading = t + PI / 2.0; // reverse of (t - PI/2)
-        states.push_back (State{x, y, heading});
+        states.emplace_back (x, y, heading);
     }
 
     for (const auto &[name, robot] : robots)

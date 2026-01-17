@@ -48,7 +48,8 @@ template <> struct GenName<ReedsShepp>
 /* ───────── utilities ───────── */
     [[nodiscard]] inline double euclidean (const State &a, const State &b) noexcept
     {
-        const double dx = a.x - b.x, dy = a.y - b.y;
+        const double dx = a.x - b.x;
+        const double dy = a.y - b.y;
         return std::sqrt (dx * dx + dy * dy);
     }
     [[nodiscard]] inline double polylineLength (std::span<const State> pts)
@@ -101,8 +102,7 @@ template <class Generator> class SteeringFixture : public ::testing::Test
 
             // length consistency
             const double declared = result.length ();
-            const double realised = polylineLength (*result.states);
-            if (std::isfinite (declared) && std::fabs (declared - realised) > EPS_LEN)
+            if (const double realised = polylineLength (*result.states); std::isfinite (declared) && std::fabs (declared - realised) > EPS_LEN)
             {
                 ok = false;
                 fail << "length mismatch (" << declared << " vs " << realised << "); ";

@@ -11,6 +11,7 @@
 #include <arcgen/core/state.hpp>
 #include <arcgen/steering/path.hpp>
 
+#include <algorithm>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -109,10 +110,7 @@ namespace arcgen::planner::constraints
          */
         [[nodiscard]] bool feasible (const Path<N> &cand, const EvalContext<N> &ctx) const noexcept
         {
-            for (const auto &c : hard)
-                if (!c->accept (cand, ctx))
-                    return false;
-            return true;
+            return std::ranges::all_of (hard, [&cand, &ctx] (const auto &c) { return c->accept (cand, ctx); });
         }
 
         /**

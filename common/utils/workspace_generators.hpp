@@ -38,7 +38,7 @@ namespace arcgen::utils
      */
     inline std::shared_ptr<arcgen::planner::geometry::Workspace> randomWorkspace (std::mt19937 &rng)
     {
-        std::uniform_real_distribution<> uni (0.0, 1.0);
+        std::uniform_real_distribution uni (0.0, 1.0);
 
         arcgen::planner::geometry::Polygon outer;
         outer.outer () = {{0, 0}, {15, 5}, {20, 0}, {10, -5}, {20, -20}, {40, -20}, {40, 40}, {5, 35}, {0, 30}, {0, 0}};
@@ -65,7 +65,8 @@ namespace arcgen::utils
      */
     inline std::shared_ptr<arcgen::planner::geometry::Workspace> mazeWorkspace ()
     {
-        constexpr double W = 60.0, H = 40.0;
+        constexpr double W = 60.0;
+        constexpr double H = 40.0;
         arcgen::planner::geometry::Polygon outer = rectPoly (0, 0, W, H);
 
         constexpr int L = 10;
@@ -73,7 +74,8 @@ namespace arcgen::utils
         constexpr int SEGMENTS = 8;
 
         std::vector<arcgen::planner::geometry::Polygon> holes;
-        const double dx = W / (L + 1), dy = H / SEGMENTS;
+        const double dx = W / (L + 1);
+        const double dy = H / SEGMENTS;
 
         for (int i = 1; i <= L; ++i)
         {

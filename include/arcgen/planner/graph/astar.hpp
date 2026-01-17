@@ -140,7 +140,7 @@ namespace arcgen::planner::graph
             {
                 // Success: goal reached.
             }
-            catch (...)
+            catch (const std::exception &)
             {
                 return {};
             }
@@ -158,7 +158,7 @@ namespace arcgen::planner::graph
                 auto const &p = graph[v];
                 coarse.push_back (State{p.x (), p.y ()});
             }
-            std::reverse (coarse.begin (), coarse.end ());
+            std::ranges::reverse (coarse);
             return coarse;
         }
     };

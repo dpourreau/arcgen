@@ -41,7 +41,8 @@ constexpr double LOCAL_MARGIN_MULT = 1.0; ///< Multiplier on r_min for local box
 /* ───────────── tiny utility ───────────── */
 static double edgeLength (const Point &p, const Point &q)
 {
-    const double dx = q.x () - p.x (), dy = q.y () - p.y ();
+    const double dx = q.x () - p.x ();
+    const double dy = q.y () - p.y ();
     return std::sqrt (dx * dx + dy * dy);
 }
 
@@ -122,11 +123,11 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
 
         bg::model::box<Point> bb;
         bg::envelope (W.region (), bb);
-        std::uniform_real_distribution<double> ux (bb.min_corner ().x (), bb.max_corner ().x ());
-        std::uniform_real_distribution<double> uy (bb.min_corner ().y (), bb.max_corner ().y ());
+        std::uniform_real_distribution ux (bb.min_corner ().x (), bb.max_corner ().x ());
+        std::uniform_real_distribution uy (bb.min_corner ().y (), bb.max_corner ().y ());
 
         const double margin = marginMult * rMin;
-        auto sampleInside = [&] () -> Point
+        auto sampleInside = [&] ()
         {
             Point p{};
             do
@@ -216,8 +217,7 @@ template <class SkeletonT> class SkeletonFixture : public ::testing::Test
         {
             const Point &p = G[source (e, G)];
             const Point &q = G[target (e, G)];
-            const Point mid{(p.x () + q.x ()) * 0.5, (p.y () + q.y ()) * 0.5};
-            if (!bg::within (mid, region))
+            if (const Point mid{(p.x () + q.x ()) * 0.5, (p.y () + q.y ()) * 0.5}; !bg::within (mid, region))
                 return isLocal ? "local edge crosses obstacle; " : "edge crosses obstacle; ";
 
             if (std::fabs (wmap[e] - edgeLength (p, q)) > EPS_WEIGHT)

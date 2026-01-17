@@ -34,11 +34,12 @@ namespace arcgen::core
          */
         [[nodiscard]] constexpr DrivingDirection direction () const noexcept
         {
+            using enum arcgen::core::DrivingDirection;
             if (arcLength > 0.0)
-                return DrivingDirection::Forward;
+                return Forward;
             if (arcLength < 0.0)
-                return DrivingDirection::Reverse;
-            return DrivingDirection::Neutral;
+                return Reverse;
+            return Neutral;
         }
     };
 

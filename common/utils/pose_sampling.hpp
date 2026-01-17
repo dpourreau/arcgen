@@ -51,7 +51,7 @@ namespace arcgen::utils
         for (int i = 0; i <= segments; ++i)
         {
             const double t = static_cast<double> (i) / static_cast<double> (segments);
-            const double a = a0 + t * (a1 - a0);
+            const double a = std::lerp (a0, a1, t);
             ring.emplace_back (cx + radius * std::cos (a), cy + radius * std::sin (a));
         }
 

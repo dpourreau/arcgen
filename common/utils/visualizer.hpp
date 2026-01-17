@@ -123,7 +123,8 @@ namespace arcgen::utils
         void drawAxes (double stroke = 0.5)
         {
             ensureHeader ();
-            const double cx = canvasWidth_ / 2.0, cy = canvasHeight_ / 2.0;
+            const double cx = canvasWidth_ / 2.0;
+            const double cy = canvasHeight_ / 2.0;
             lineSvg (0, cy, canvasWidth_, cy, palette_.axes, stroke);
             lineSvg (cx, 0, cx, canvasHeight_, palette_.axes, stroke);
         }
@@ -167,7 +168,7 @@ namespace arcgen::utils
                     return;
 
                 const std::string &strokeColor = selectColor (dir);
-                out_ << "  <polyline fill=\"none\" stroke=\"" << strokeColor << "\" stroke-width=\"" << stroke << "\" stroke-opacity=\"" << opacity << "\" points=\"";
+                out_ << R"(  <polyline fill="none" stroke=")" << strokeColor << R"(" stroke-width=")" << stroke << R"(" stroke-opacity=")" << opacity << R"(" points=")";
                 for (std::size_t idx = begin; idx < end; ++idx)
                 {
                     const auto [x, y] = toSvg (points[idx].x, points[idx].y);
@@ -208,7 +209,8 @@ namespace arcgen::utils
             const double dx = std::cos (s.heading) * rPx;
             const double dy = -std::sin (s.heading) * rPx; // flip Y for SVG
 
-            const double ax = cx + dx, ay = cy + dy;
+            const double ax = cx + dx;
+            const double ay = cy + dy;
             const double bx = cx - 0.5 * dx + 0.35 * dy;
             const double by = cy - 0.5 * dy - 0.35 * dx;
             const double cx2 = cx - 0.5 * dx - 0.35 * dy;

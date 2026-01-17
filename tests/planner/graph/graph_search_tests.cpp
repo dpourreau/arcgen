@@ -106,7 +106,8 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 
     void runOne ([[maybe_unused]] int id)
     {
-        State s{}, g{};
+        State s{};
+        State g{};
         sample (s);
         do
         {
@@ -165,9 +166,9 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
     {
         bg::model::box<Point> bb;
         bg::envelope (getShared ().W.region (), bb);
-        std::uniform_real_distribution<double> ux (bb.min_corner ().x (), bb.max_corner ().x ());
-        std::uniform_real_distribution<double> uy (bb.min_corner ().y (), bb.max_corner ().y ());
-        std::uniform_real_distribution<double> uh (0.0, two_pi);
+        std::uniform_real_distribution ux (bb.min_corner ().x (), bb.max_corner ().x ());
+        std::uniform_real_distribution uy (bb.min_corner ().y (), bb.max_corner ().y ());
+        std::uniform_real_distribution uh (0.0, two_pi);
 
         do
         {

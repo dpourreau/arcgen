@@ -9,8 +9,8 @@
 #include <arcgen/core/math.hpp>
 #include <arcgen/core/numeric.hpp>
 
+#include <algorithm>
 #include <chrono>
-
 #include <cmath>
 #include <optional>
 #include <string>
@@ -338,8 +338,9 @@ namespace arcgen::planner::connector
                 fixedIdx.push_back (u);
                 fixedIdx.push_back (v);
             }
-            std::sort (fixedIdx.begin (), fixedIdx.end ());
-            fixedIdx.erase (std::unique (fixedIdx.begin (), fixedIdx.end ()), fixedIdx.end ());
+            std::ranges::sort (fixedIdx);
+            auto ret = std::ranges::unique (fixedIdx);
+            fixedIdx.erase (ret.begin (), ret.end ());
 
             std::vector<arcgen::core::State> anchors;
             anchors.reserve (fixedIdx.size ());
@@ -525,7 +526,7 @@ namespace arcgen::planner::connector
          * @param costMap Map of steering ID to cost.
          * @return Vector of SegmentView structs.
          */
-        const std::vector<SegmentView> buildSegments (const std::vector<std::size_t> &indices, const std::vector<int64_t> &ids,
+        std::vector<SegmentView> buildSegments (const std::vector<std::size_t> &indices, const std::vector<int64_t> &ids,
                                                       const std::unordered_map<int64_t, double> &costMap) const
         {
             std::vector<SegmentView> segments;
@@ -541,7 +542,7 @@ namespace arcgen::planner::connector
                 {
                     if (currentId != -1)
                     {
-                        double c = costMap.count (currentId) ? costMap.at (currentId) : 0.0;
+                        double c = costMap.contains (currentId) ? costMap.at (currentId) : 0.0;
                         segments.push_back ({currentId, segStart, k - 1, c});
                     }
 
@@ -551,7 +552,7 @@ namespace arcgen::planner::connector
             }
             if (currentId != -1)
             {
-                double c = costMap.count (currentId) ? costMap.at (currentId) : 0.0;
+                double c = costMap.contains (currentId) ? costMap.at (currentId) : 0.0;
                 segments.push_back ({currentId, segStart, indices.size () - 1, c});
             }
 

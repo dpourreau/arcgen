@@ -238,8 +238,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         bg::model::box<Point> bb;
         bg::envelope (workspace.region (), bb);
 
-        std::uniform_real_distribution<double> ux (bb.min_corner ().x (), bb.max_corner ().x ());
-        std::uniform_real_distribution<double> uy (bb.min_corner ().y (), bb.max_corner ().y ());
+        std::uniform_real_distribution ux (bb.min_corner ().x (), bb.max_corner ().x ());
+        std::uniform_real_distribution uy (bb.min_corner ().y (), bb.max_corner ().y ());
 
         do
         {
@@ -249,7 +249,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     }
 
     /// @brief Sample heading uniformly in [0, 2π).
-    double sampleHeading () { return std::uniform_real_distribution<double> (0.0, PI2) (randomEngine_); }
+    double sampleHeading () { return std::uniform_real_distribution (0.0, PI2) (randomEngine_); }
 
     /**
      * @brief Ensure the sampled pose meets the “local reachability” rule via half-disks.
@@ -278,8 +278,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         else
         {
             // Reeds–Shepp: either direction is fine.
-            const bool fwd = halfDiskInside (workspace, s.x, s.y, s.heading, radius, true);
-            if (fwd)
+            if (const bool fwd = halfDiskInside (workspace, s.x, s.y, s.heading, radius, true); fwd)
                 return true;
             return halfDiskInside (workspace, s.x, s.y, s.heading, radius, false);
         }
