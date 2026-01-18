@@ -43,6 +43,7 @@ jobs:
         # Added -j for parallel gcovr processing
         gcovr -r . --sonarqube -o coverage.xml \
           --exclude-directories "tests|build/coverage/_deps" \
+          --exclude-throw-branches --exclude-unreachable-branches \
           -j $(nproc)
 
     - name: SonarCloud Scan
