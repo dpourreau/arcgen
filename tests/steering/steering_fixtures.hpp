@@ -20,8 +20,10 @@
 #include <string>
 #include <vector>
 
-using namespace arcgen::core;
-using namespace arcgen::steering;
+using arcgen::core::DrivingDirection;
+using arcgen::core::State;
+using arcgen::steering::Dubins;
+using arcgen::steering::ReedsShepp;
 
 constexpr double R_MIN = 3.0;     ///< [m]
 constexpr double STEP = 0.30;     ///< [m]
@@ -29,7 +31,6 @@ constexpr double EPS_GOAL = 0.05; ///< [m]
 constexpr double EPS_LEN = 0.02;  ///< [m]
 constexpr int SAMPLES = 100;      ///< random pairs / generator
 
-/* ───────── name traits ───────── */
 template <class G> struct GenName
 {
     static constexpr const char *value = "generic";
@@ -43,24 +44,21 @@ template <> struct GenName<ReedsShepp>
     static constexpr const char *value = "reeds_shepp";
 };
 
-/* ───────── utilities ───────── */
-namespace
+[[nodiscard]] inline double euclidean (const State &a, const State &b) noexcept
 {
-    [[nodiscard]] inline double euclidean (const State &a, const State &b) noexcept
-    {
-        const double dx = a.x - b.x, dy = a.y - b.y;
-        return std::sqrt (dx * dx + dy * dy);
-    }
-    [[nodiscard]] inline double polylineLength (std::span<const State> pts)
-    {
-        if (pts.size () < 2)
-            return 0.0;
-        double L = 0.0;
-        for (std::size_t i = 1; i < pts.size (); ++i)
-            L += euclidean (pts[i - 1], pts[i]);
-        return L;
-    }
-} // namespace
+    const double dx = a.x - b.x;
+    const double dy = a.y - b.y;
+    return std::sqrt (dx * dx + dy * dy);
+}
+[[nodiscard]] inline double polylineLength (std::span<const State> pts)
+{
+    if (pts.size () < 2)
+        return 0.0;
+    double L = 0.0;
+    for (std::size_t i = 1; i < pts.size (); ++i)
+        L += euclidean (pts[i - 1], pts[i]);
+    return L;
+}
 
 /**
  * @brief Typed fixture for steering generators (property + timing).
@@ -69,7 +67,7 @@ namespace
 template <class Generator> class SteeringFixture : public ::testing::Test
 {
   protected:
-    SteeringFixture () : gen_{Generator{R_MIN, STEP}}, rng_ (42), pos_ (-10.0, 10.0), ang_ (0.0, arcgen::core::two_pi) {}
+    SteeringFixture () = default;
 
     void checkPath (const State &start, const State &goal, const std::string &caseName)
     {
@@ -93,8 +91,7 @@ template <class Generator> class SteeringFixture : public ::testing::Test
         else
         {
             // final pose near goal
-            const double miss = euclidean (result.states->back (), goal);
-            if (miss > EPS_GOAL)
+            if (const double miss = euclidean (result.states->back (), goal); miss > EPS_GOAL)
             {
                 ok = false;
                 fail << "goal miss (" << miss << " m); ";
@@ -102,8 +99,7 @@ template <class Generator> class SteeringFixture : public ::testing::Test
 
             // length consistency
             const double declared = result.length ();
-            const double realised = polylineLength (*result.states);
-            if (std::isfinite (declared) && std::fabs (declared - realised) > EPS_LEN)
+            if (const double realised = polylineLength (*result.states); std::isfinite (declared) && std::fabs (declared - realised) > EPS_LEN)
             {
                 ok = false;
                 fail << "length mismatch (" << declared << " vs " << realised << "); ";
@@ -143,7 +139,8 @@ template <class Generator> class SteeringFixture : public ::testing::Test
 
     void runOneProperty (int id)
     {
-        State a{}, b{};
+        State a{};
+        State b{};
         a.x = pos_ (rng_);
         a.y = pos_ (rng_);
         a.heading = ang_ (rng_);
@@ -154,10 +151,10 @@ template <class Generator> class SteeringFixture : public ::testing::Test
     }
 
   private:
-    Generator gen_;
-    std::mt19937 rng_;
-    std::uniform_real_distribution<> pos_;
-    std::uniform_real_distribution<> ang_;
+    Generator gen_{R_MIN, STEP};
+    std::mt19937 rng_{42}; // NOSONAR
+    std::uniform_real_distribution<> pos_{-10.0, 10.0};
+    std::uniform_real_distribution<> ang_{0.0, arcgen::core::two_pi};
 };
 
 TYPED_TEST_SUITE_P (SteeringFixture);

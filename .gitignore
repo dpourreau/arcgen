@@ -60,3 +60,4 @@ Thumbs.db
 # Test artifacts
 tests/**/output*
 dockcross-arm64
+coverage.xml

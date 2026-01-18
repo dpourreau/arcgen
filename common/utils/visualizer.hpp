@@ -7,8 +7,7 @@
  *  - the valid region (with holes),
  *  - a skeleton graph (edges + optional vertex dots),
  *  - a sampled path,
- *  - start/goal poses, and
- *  - axes.
+ *  - start/goal poses, and axes.
  *
  * The visualizer auto-fits the world extents into a square canvas and correctly flips
  * the Y axis for SVG (world Y up).
@@ -31,9 +30,6 @@
 
 namespace arcgen::utils
 {
-    using namespace arcgen::core;
-    using namespace arcgen::planner::geometry;
-
     /**
      * @brief Simple color palette for the SVG output.
      */
@@ -126,7 +122,8 @@ namespace arcgen::utils
         void drawAxes (double stroke = 0.5)
         {
             ensureHeader ();
-            const double cx = canvasWidth_ / 2.0, cy = canvasHeight_ / 2.0;
+            const double cx = canvasWidth_ / 2.0;
+            const double cy = canvasHeight_ / 2.0;
             lineSvg (0, cy, canvasWidth_, cy, palette_.axes, stroke);
             lineSvg (cx, 0, cx, canvasHeight_, palette_.axes, stroke);
         }
@@ -137,7 +134,7 @@ namespace arcgen::utils
          * @param color   Optional stroke color (defaults to @ref Palette::pathForward).
          * @param stroke Stroke width in pixels.
          */
-        void drawPath (std::span<const State> points, std::string color = {}, double stroke = 2.0, double opacity = 0.8)
+        void drawPath (std::span<const arcgen::core::State> points, const std::string &color = {}, double stroke = 2.0, double opacity = 0.8)
         {
             if (points.empty ())
                 return;
@@ -148,29 +145,29 @@ namespace arcgen::utils
             ensureHeader ();
 
             const auto &palette = palette_;
-            const auto selectColor = [&] (DrivingDirection dir) -> const std::string &
+            const auto selectColor = [&] (arcgen::core::DrivingDirection dir) -> const std::string &
             {
                 if (!color.empty ())
                     return color;
 
                 switch (dir)
                 {
-                    case DrivingDirection::Forward:
+                    case arcgen::core::DrivingDirection::Forward:
                         return palette.pathForward;
-                    case DrivingDirection::Reverse:
+                    case arcgen::core::DrivingDirection::Reverse:
                         return palette.pathReverse;
                     default:
                         return palette.pathNeutral;
                 }
             };
 
-            auto emitSegment = [&] (std::size_t begin, std::size_t end, DrivingDirection dir)
+            auto emitSegment = [&] (std::size_t begin, std::size_t end, arcgen::core::DrivingDirection dir)
             {
                 if (end <= begin + 1)
                     return;
 
                 const std::string &strokeColor = selectColor (dir);
-                out_ << "  <polyline fill=\"none\" stroke=\"" << strokeColor << "\" stroke-width=\"" << stroke << "\" stroke-opacity=\"" << opacity << "\" points=\"";
+                out_ << R"(  <polyline fill="none" stroke=")" << strokeColor << R"(" stroke-width=")" << stroke << R"(" stroke-opacity=")" << opacity << R"(" points=")";
                 for (std::size_t idx = begin; idx < end; ++idx)
                 {
                     const auto [x, y] = toSvg (points[idx].x, points[idx].y);
@@ -180,11 +177,11 @@ namespace arcgen::utils
             };
 
             std::size_t segBegin = 0;
-            DrivingDirection segDir = points.front ().direction;
+            arcgen::core::DrivingDirection segDir = points.front ().direction;
 
             for (std::size_t idx = 1; idx < points.size (); ++idx)
             {
-                const DrivingDirection dir = points[idx].direction;
+                const arcgen::core::DrivingDirection dir = points[idx].direction;
                 if (dir != segDir)
                 {
                     emitSegment (segBegin, idx, segDir);
@@ -202,7 +199,7 @@ namespace arcgen::utils
          * @param rPx    Marker size (approximate radius in pixels).
          * @param color  Fill color for the marker.
          */
-        void drawPose (const State &s, double rPx, std::string color)
+        void drawPose (const arcgen::core::State &s, double rPx, const std::string &color)
         {
             trackWorld (s.x, s.y);
             ensureHeader ();
@@ -211,7 +208,8 @@ namespace arcgen::utils
             const double dx = std::cos (s.heading) * rPx;
             const double dy = -std::sin (s.heading) * rPx; // flip Y for SVG
 
-            const double ax = cx + dx, ay = cy + dy;
+            const double ax = cx + dx;
+            const double ay = cy + dy;
             const double bx = cx - 0.5 * dx + 0.35 * dy;
             const double by = cy - 0.5 * dy - 0.35 * dx;
             const double cx2 = cx - 0.5 * dx - 0.35 * dy;
@@ -226,12 +224,10 @@ namespace arcgen::utils
          * @param rPx    Marker size in pixels.
          * @param color  Optional override color.
          */
-        void drawStartPose (const State &s, double rPx = 9.0, std::string color = {})
+        void drawStartPose (const arcgen::core::State &s, double rPx = 9.0, const std::string &color = {})
         {
-            if (color.empty ())
-                color = palette_.startPose;
-
-            drawPose (s, rPx, color);
+            const std::string &effectiveColor = color.empty () ? palette_.startPose : color;
+            drawPose (s, rPx, effectiveColor);
         }
 
         /**
@@ -240,12 +236,10 @@ namespace arcgen::utils
          * @param rPx    Marker size in pixels.
          * @param color  Optional override color.
          */
-        void drawGoalPose (const State &s, double rPx = 9.0, std::string color = {})
+        void drawGoalPose (const arcgen::core::State &s, double rPx = 9.0, const std::string &color = {})
         {
-            if (color.empty ())
-                color = palette_.goalPose;
-
-            drawPose (s, rPx, color);
+            const std::string &effectiveColor = color.empty () ? palette_.goalPose : color;
+            drawPose (s, rPx, effectiveColor);
         }
 
         // Styled ring writer with fill opacity and stroke opacity parameter.
@@ -271,7 +265,8 @@ namespace arcgen::utils
          * @param fillOpacity  Opacity for the fill [0..1].
          * @param strokeOpacity Opacity for the stroke [0..1].
          */
-        void drawPolygon (const Polygon &poly, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0, double strokeOpacity = 1.0)
+        void drawPolygon (const arcgen::planner::geometry::Polygon &poly, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0,
+                          double strokeOpacity = 1.0)
         {
             for (auto &v : poly.outer ())
                 trackWorld (v.x (), v.y ());
@@ -294,8 +289,8 @@ namespace arcgen::utils
          * @param fillOpacity  Opacity for the fill [0..1].
          * @param strokeOpacity Opacity for the stroke [0..1].
          */
-        void drawMultiPolygon (const MultiPolygon &mp, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8, double fillOpacity = 1.0,
-                               double strokeOpacity = 1.0)
+        void drawMultiPolygon (const arcgen::planner::geometry::MultiPolygon &mp, const std::string &fill, const std::string &stroke, double strokeWidth = 0.8,
+                               double fillOpacity = 1.0, double strokeOpacity = 1.0)
         {
             for (const auto &poly : mp)
             {
@@ -320,7 +315,7 @@ namespace arcgen::utils
          * @param workspace   Valid region (multi-polygon).
          * @param strokeWidth Stroke width in pixels for region edges.
          */
-        void drawRegion (const Workspace &workspace, double strokeWidth = 0.8)
+        void drawRegion (const arcgen::planner::geometry::Workspace &workspace, double strokeWidth = 0.8)
         {
             // Gather world extents first.
             for (const auto &poly : workspace.region ())

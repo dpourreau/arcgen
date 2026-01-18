@@ -136,13 +136,11 @@ namespace arcgen::planner::graph
                                          .color_map (boost::make_iterator_property_map (color.begin (), index))
                                          .visitor (ExitVisitor{vGoal}));
             }
-            catch (const GoalFound &)
+            catch (const GoalFound &) // NOSONAR
             {
                 // Success: goal reached.
-            }
-            catch (...)
-            {
-                return {};
+                // Boost.Graph's A* implementation requires throwing an exception to Stop/Exit early.
+                // This is the intended control flow for this algorithm.
             }
 
             if (distance[index[vGoal]] == std::numeric_limits<double>::max ())
@@ -158,7 +156,7 @@ namespace arcgen::planner::graph
                 auto const &p = graph[v];
                 coarse.push_back (State{p.x (), p.y ()});
             }
-            std::reverse (coarse.begin (), coarse.end ());
+            std::ranges::reverse (coarse);
             return coarse;
         }
     };

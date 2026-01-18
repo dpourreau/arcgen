@@ -25,7 +25,7 @@ struct MockSteering
 
     [[nodiscard]] std::vector<PathType> candidates (const State & /*start*/, const State & /*goal*/) const { return cannedCandidates; }
 
-    void ensureStates (const State & /*start*/, PathType &path) const
+    void ensureStates (const State & /*start*/, const PathType &path) const
     {
         if (!path.states)
         {
@@ -40,7 +40,7 @@ template <size_t N> class MockHardConstraint : public HardConstraint<N>
     double limit_;
 
   public:
-    MockHardConstraint (double limit) : limit_ (limit) {}
+    explicit MockHardConstraint (double limit) : limit_ (limit) {}
     bool accept (const Path<N> &p, const EvalContext<N> &) const noexcept override { return p.length () <= limit_; }
     // HardConstraint does NOT have name()
 };
@@ -58,7 +58,7 @@ template <size_t N> class MockSoftConstraint : public SoftConstraint<N>
 
 class EvaluatorFixture : public ::testing::Test
 {
-  protected:
+  public:
     static constexpr std::size_t N = MockSteering::kSegments;
     using PathType = MockSteering::PathType;
     using ConstraintSetType = ConstraintSet<N>;
@@ -73,7 +73,7 @@ class EvaluatorFixture : public ::testing::Test
 
     void SetUp () override { evaluator_ = std::make_unique<EvaluatorType> (&steering_, &constraints_); }
 
-    PathType makePath (double len)
+    PathType makePath (double len) const
     {
         PathType p;
         p.controls.n = 1;
@@ -106,7 +106,7 @@ TEST_F (EvaluatorFixture, UnconstrainedSelection)
 TEST_F (EvaluatorFixture, HardFeasibility)
 {
     // Limit length <= 10
-    constraints_.hard.push_back (std::make_shared<MockHardConstraint<N>> (10.0));
+    constraints_.hard.emplace_back (std::make_shared<MockHardConstraint<N>> (10.0));
 
     steering_.cannedCandidates = {
         makePath (5.0),  // Valid
@@ -128,7 +128,7 @@ TEST_F (EvaluatorFixture, HardFeasibility)
 TEST_F (EvaluatorFixture, SoftOptimization)
 {
     // Add soft constraint (cost = length * 2) with weight 1.0
-    constraints_.soft.push_back ({std::make_shared<MockSoftConstraint<N>> (), 1.0});
+    constraints_.soft.emplace_back (std::make_shared<MockSoftConstraint<N>> (), 1.0);
 
     // Candidates:
     // A: 5.0 (Cost 10.0)
@@ -146,7 +146,7 @@ TEST_F (EvaluatorFixture, EvaluatorCostDense)
     // Test evaluateCost(span<State>)
 
     // Add soft constraint with weight 1.0
-    constraints_.soft.push_back ({std::make_shared<MockSoftConstraint<N>> (), 1.0});
+    constraints_.soft.emplace_back (std::make_shared<MockSoftConstraint<N>> (), 1.0);
 
     std::vector<State> densePath (3);
     // 3 points, length ~2.0
@@ -170,7 +170,7 @@ TEST_F (EvaluatorFixture, SoftRejection)
         std::string name () const override { return "InfConstraint"; }
     };
 
-    constraints_.soft.push_back ({std::make_shared<InfConstraint> (), 1.0});
+    constraints_.soft.emplace_back (std::make_shared<InfConstraint> (), 1.0);
     steering_.cannedCandidates = {makePath (5.0)};
 
     auto result = evaluator_->bestStatesBetween (start_, goal_);
@@ -190,13 +190,13 @@ TEST_F (EvaluatorFixture, MultipleSoftConstraints)
         double factor_;
 
       public:
-        LinearConstraint (double f) : factor_ (f) {}
+        explicit LinearConstraint (double f) : factor_ (f) {}
         double cost (const Path<N> &p, const EvalContext<N> &) const noexcept override { return p.length () * factor_; }
         std::string name () const override { return "Linear"; }
     };
 
-    constraints_.soft.push_back ({std::make_shared<LinearConstraint> (1.0), 1.0});
-    constraints_.soft.push_back ({std::make_shared<LinearConstraint> (2.0), 0.5});
+    constraints_.soft.emplace_back (std::make_shared<LinearConstraint> (1.0), 1.0);
+    constraints_.soft.emplace_back (std::make_shared<LinearConstraint> (2.0), 0.5);
 
     steering_.cannedCandidates = {makePath (10.0)};
 
@@ -204,4 +204,43 @@ TEST_F (EvaluatorFixture, MultipleSoftConstraints)
     ASSERT_TRUE (result.has_value ());
     // Cost: 10*1*1 + 10*2*0.5 = 10 + 10 = 20.
     EXPECT_DOUBLE_EQ (result->second, 20.0);
+}
+
+/// @brief Verify bestStatesBetween behavior when steering is null.
+TEST_F (EvaluatorFixture, NullSteering)
+{
+    steering_.cannedCandidates = {makePath (10.0)};
+    auto nullSteerEval = std::make_unique<EvaluatorType> (nullptr, &constraints_);
+    auto result = nullSteerEval->bestStatesBetween (start_, goal_);
+    EXPECT_FALSE (result.has_value ());
+}
+
+/// @brief Verify behavior when constraints are null.
+TEST_F (EvaluatorFixture, NullConstraints)
+{
+    steering_.cannedCandidates = {makePath (10.0)};
+    auto nullConstEval = std::make_unique<EvaluatorType> (&steering_, nullptr);
+
+    // bestStatesBetween should return nullopt if constraints are null (as per logic in best())
+    auto result = nullConstEval->bestStatesBetween (start_, goal_);
+    EXPECT_FALSE (result.has_value ());
+}
+
+/// @brief Verify evaluateCost returns 0.0 when constraints are null.
+TEST_F (EvaluatorFixture, EvaluateCostNull)
+{
+    auto nullConstEval = std::make_unique<EvaluatorType> (&steering_, nullptr);
+    std::vector<State> path (2);
+    double cost = nullConstEval->evaluateCost (path);
+    EXPECT_DOUBLE_EQ (cost, 0.0);
+}
+
+/// @brief Verify evaluateCost returns 0.0 when path is empty.
+TEST_F (EvaluatorFixture, EvaluateCostEmpty)
+{
+    std::vector<State> emptyPath;
+    // Ensure constraints exist so we don't hit the null constraint check first
+    constraints_.soft.emplace_back (std::make_shared<MockSoftConstraint<N>> (), 1.0);
+    double cost = evaluator_->evaluateCost (emptyPath);
+    EXPECT_DOUBLE_EQ (cost, 0.0);
 }

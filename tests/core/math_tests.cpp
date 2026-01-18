@@ -161,7 +161,7 @@ TEST (MathTests, ComputeArcEndpoint)
         EXPECT_NEAR (t, 0.0, 1e-5);
     }
 
-    // 3. Circle: Radius 10 (k=0.1), Length = 1/4 circumference = 2*pi*10 / 4 = 5*pi
+    // 3. Circle: Radius 10 (k=0.1), Length = 1/4 circumference
     {
         double k = 0.1;
         double R = 10.0;
@@ -227,8 +227,8 @@ TEST (MathTests, ComputeArcEndpoint)
 TEST (MathTests, FuzzToPolar)
 {
     // Use fixed seed for reproducibility
-    std::mt19937 rng (12345);
-    std::uniform_real_distribution<double> dist (-100.0, 100.0);
+    std::mt19937 rng (12345); // NOSONAR
+    std::uniform_real_distribution dist (-100.0, 100.0);
 
     for (int i = 0; i < 1000; ++i)
     {
@@ -267,10 +267,10 @@ TEST (MathTests, FuzzToPolar)
 /// @brief Fuzz test for NormalizeAngle: range and modular arithmetic properties.
 TEST (MathTests, FuzzNormalizeAngle)
 {
-    std::mt19937 rng (67890);
+    std::mt19937 rng (67890); // NOSONAR
     // Range includes large values to test wrapping multiple times
-    std::uniform_real_distribution<double> dist (-10000.0, 10000.0);
-    std::uniform_int_distribution<int> k_dist (-10, 10);
+    std::uniform_real_distribution dist (-10000.0, 10000.0);
+    std::uniform_int_distribution k_dist (-10, 10);
 
     for (int i = 0; i < 1000; ++i)
     {
@@ -304,10 +304,10 @@ TEST (MathTests, FuzzNormalizeAngle)
 /// @brief Fuzz test for computeLineEndpoint: Reversibility.
 TEST (MathTests, FuzzComputeLineEndpoint)
 {
-    std::mt19937 rng (11111);
-    std::uniform_real_distribution<double> dist (-100.0, 100.0);
-    std::uniform_real_distribution<double> angle_dist (-PI, PI);
-    std::uniform_real_distribution<double> len_dist (0.0, 50.0);
+    std::mt19937 rng (11111); // NOSONAR
+    std::uniform_real_distribution dist (-100.0, 100.0);
+    std::uniform_real_distribution angle_dist (-PI, PI);
+    std::uniform_real_distribution len_dist (0.0, 50.0);
 
     for (int i = 0; i < 1000; ++i)
     {
@@ -330,11 +330,11 @@ TEST (MathTests, FuzzComputeLineEndpoint)
 /// @brief Fuzz test for computeArcEndpoint: Reversibility.
 TEST (MathTests, FuzzComputeArcEndpoint)
 {
-    std::mt19937 rng (22222);
-    std::uniform_real_distribution<double> dist (-100.0, 100.0);
-    std::uniform_real_distribution<double> angle_dist (-PI, PI);
-    std::uniform_real_distribution<double> k_dist (-0.5, 0.5); // Curvature
-    std::uniform_real_distribution<double> len_dist (0.0, 50.0);
+    std::mt19937 rng (22222); // NOSONAR
+    std::uniform_real_distribution dist (-100.0, 100.0);
+    std::uniform_real_distribution angle_dist (-PI, PI);
+    std::uniform_real_distribution k_dist (-0.5, 0.5); // Curvature
+    std::uniform_real_distribution len_dist (0.0, 50.0);
 
     for (int i = 0; i < 1000; ++i)
     {

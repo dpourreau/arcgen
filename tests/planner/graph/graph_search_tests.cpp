@@ -89,15 +89,25 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
     using Search = SearchT;
     using Graph = arcgen::planner::geometry::Graph;
 
-    inline static Workspace W_{*arcgen::utils::mazeWorkspace ()};
-    inline static arcgen::planner::geometry::StraightSkeleton skel_;
-    inline static Graph G_{skel_.generate (W_)};
+    struct SharedData
+    {
+        Workspace W{*arcgen::utils::mazeWorkspace ()};
+        [[no_unique_address]] arcgen::planner::geometry::StraightSkeleton skel;
+        Graph G{skel.generate (W)};
+    };
 
-    MazeTimingFixture () : rng_ (seedCounter_++) {}
+    static SharedData &getShared ()
+    {
+        static SharedData instance;
+        return instance;
+    }
+
+    MazeTimingFixture () = default;
 
     void runOne ([[maybe_unused]] int id)
     {
-        State s{}, g{};
+        State s{};
+        State g{};
         sample (s);
         do
         {
@@ -106,18 +116,18 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
 
         std::vector<State> coarse;
         {
-            coarse = search_.search (G_, s, g);
+            coarse = search_.search (getShared ().G, s, g);
         }
 
         bool ok = !coarse.empty ();
-        if (!ok && straightInside (W_, s, g))
+        if (!ok && straightInside (getShared ().W, s, g))
             ok = true;
 
         if (ok && !coarse.empty ())
         {
             for (auto &st : coarse)
             {
-                if (!nearestVertex (G_, st.x, st.y))
+                if (!nearestVertex (getShared ().G, st.x, st.y))
                 {
                     ok = false;
                     break;
@@ -130,8 +140,8 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
         fn << NameTag<Search>::str << '_' << (ok ? "ok_" : "fail_") << id << ".svg";
         auto outPath = arcgen::utils::plotFile ({"search", NameTag<Search>::str}, fn.str ());
         Visualizer svg (outPath.string (), 900);
-        svg.drawRegion (W_);
-        svg.drawSkeleton (G_);
+        svg.drawRegion (getShared ().W);
+        svg.drawSkeleton (getShared ().G);
         if (coarse.empty ())
         {
             std::array<State, 2> line{s, g};
@@ -155,21 +165,21 @@ template <class SearchT> class MazeTimingFixture : public ::testing::Test
     void sample (State &st)
     {
         bg::model::box<Point> bb;
-        bg::envelope (W_.region (), bb);
-        std::uniform_real_distribution<double> ux (bb.min_corner ().x (), bb.max_corner ().x ());
-        std::uniform_real_distribution<double> uy (bb.min_corner ().y (), bb.max_corner ().y ());
-        std::uniform_real_distribution<double> uh (0.0, two_pi);
+        bg::envelope (getShared ().W.region (), bb);
+        std::uniform_real_distribution ux (bb.min_corner ().x (), bb.max_corner ().x ());
+        std::uniform_real_distribution uy (bb.min_corner ().y (), bb.max_corner ().y ());
+        std::uniform_real_distribution uh (0.0, two_pi);
 
         do
         {
             st.x = ux (rng_);
             st.y = uy (rng_);
-        } while (!W_.contains (st.x, st.y));
+        } while (!getShared ().W.contains (st.x, st.y));
         st.heading = uh (rng_);
     }
 
     Search search_;
-    std::mt19937 rng_;
+    std::mt19937 rng_{seedCounter_++};
     inline static unsigned seedCounter_ = 1;
 };
 

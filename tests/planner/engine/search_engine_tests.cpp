@@ -18,10 +18,12 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <map>
 #include <numeric>
 #include <random>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -38,7 +40,6 @@ using arcgen::utils::Visualizer;
 
 namespace bg = boost::geometry;
 
-/* ───────── configuration ───────── */
 constexpr double R_MIN = 1.5;     ///< [m]
 constexpr double STEP = 0.3;      ///< [m] steering discretisation
 constexpr double EPS_GOAL = 0.01; ///< [m] goal proximity
@@ -49,7 +50,6 @@ constexpr double LOCAL_BB_MARGIN = 10.0;
 constexpr double ROBOT_LEN = 1.3; ///< [m] rectangle length
 constexpr double ROBOT_WID = 0.7; ///< [m] rectangle width
 
-/* ───────── reporting structures ───────── */
 namespace
 {
     struct PlannerStats
@@ -63,59 +63,70 @@ namespace
         std::vector<double> componentTimes_Search;
         std::vector<double> componentTimes_Connection;
         std::vector<double> pathCosts;
-        std::map<std::string, int> sourceCounts;
+        std::map<std::string, int, std::less<>> sourceCounts;
         std::vector<int> smoothingIterations;
     };
 
     class StatsAggregator
     {
-      public:
-        static StatsAggregator &instance ()
+        template <typename DebugInfoT> void extractTiming (const DebugInfoT *dbg, double &tSkel, double &tSearch, double &tConn) const
         {
-            static StatsAggregator inst;
-            return inst;
+            if (dbg->componentTimes.count ("Skeleton Generation (Local)"))
+                tSkel += dbg->componentTimes.at ("Skeleton Generation (Local)");
+            if (dbg->componentTimes.count ("Skeleton Generation (Global)"))
+                tSkel += dbg->componentTimes.at ("Skeleton Generation (Global)");
+
+            if (dbg->componentTimes.count ("Graph Search (Local)"))
+                tSearch += dbg->componentTimes.at ("Graph Search (Local)");
+            if (dbg->componentTimes.count ("Graph Search (Global)"))
+                tSearch += dbg->componentTimes.at ("Graph Search (Global)");
+
+            if (dbg->componentTimes.count ("Connection (Local)"))
+                tConn += dbg->componentTimes.at ("Connection (Local)");
+            if (dbg->componentTimes.count ("Connection (Global)"))
+                tConn += dbg->componentTimes.at ("Connection (Global)");
+
+            if (tConn == 0.0 && dbg->componentTimes.count ("Total Connection"))
+                tConn = dbg->componentTimes.at ("Total Connection");
         }
 
-        template <typename DebugInfoT> void addResult (const std::string &configName, const std::string &params, bool success, const DebugInfoT *dbg = nullptr)
+        template <typename DebugInfoT> std::string extractSource (const DebugInfoT *dbg) const
         {
-            std::lock_guard<std::mutex> lock (mutex_);
-            auto &s = stats_[configName];
+            using SourceEnum = typename DebugInfoT::Source;
+            switch (*dbg->source)
+            {
+                case SourceEnum::Direct:
+                    return "Direct";
+                case SourceEnum::Local:
+                    return "Local";
+                case SourceEnum::Global:
+                    return "Global";
+                default:
+                    return "Unknown";
+            }
+        }
+
+      public:
+        template <typename DebugInfoT> void addResult (std::string_view configName, std::string_view params, bool success, const DebugInfoT *dbg = nullptr) const
+        {
+            std::lock_guard lock (mutex_);
+            // Use string for map key, but accept string_view
+            auto &s = stats_[std::string (configName)];
             s.parameters = params;
             s.samples++;
             if (success)
                 s.successes++;
 
-            // Only add runSuccess if we are not just correcting a previous mistake but strictly maintaining order.
-            // In the previous step I added it. ensuring it's here.
             s.runSuccess.push_back (success ? 1 : 0);
 
             if (dbg)
             {
-                // Computation Time (Total)
                 double totalTime = 0.0;
-
                 double tSkel = 0.0;
-                if (dbg->componentTimes.count ("Skeleton Generation (Local)"))
-                    tSkel += dbg->componentTimes.at ("Skeleton Generation (Local)");
-                if (dbg->componentTimes.count ("Skeleton Generation (Global)"))
-                    tSkel += dbg->componentTimes.at ("Skeleton Generation (Global)");
-
                 double tSearch = 0.0;
-                if (dbg->componentTimes.count ("Graph Search (Local)"))
-                    tSearch += dbg->componentTimes.at ("Graph Search (Local)");
-                if (dbg->componentTimes.count ("Graph Search (Global)"))
-                    tSearch += dbg->componentTimes.at ("Graph Search (Global)");
-
                 double tConn = 0.0;
-                // Sum connection times from stages if available
-                if (dbg->componentTimes.count ("Connection (Local)"))
-                    tConn += dbg->componentTimes.at ("Connection (Local)");
-                if (dbg->componentTimes.count ("Connection (Global)"))
-                    tConn += dbg->componentTimes.at ("Connection (Global)");
 
-                // Fallback to internal connector total if explicit stage not found (compatibility)
-                if (tConn == 0.0 && dbg->componentTimes.count ("Total Connection"))
-                    tConn = dbg->componentTimes.at ("Total Connection");
+                extractTiming (dbg, tSkel, tSearch, tConn);
 
                 if (dbg->componentTimes.count ("Total Planning Time"))
                 {
@@ -123,7 +134,6 @@ namespace
                 }
                 else if (tConn == 0.0 && tSkel == 0.0 && tSearch == 0.0)
                 {
-                    // Fallback: sum all steps if components are missing
                     for (const auto &step : dbg->history)
                         totalTime += step.computationTime;
                 }
@@ -139,28 +149,11 @@ namespace
 
                 if (success && dbg->source.has_value ())
                 {
-                    std::string srcName;
-                    // Use the type form DebugInfoT
-                    using SourceEnum = typename DebugInfoT::Source;
-                    switch (*dbg->source)
-                    {
-                        case SourceEnum::Direct:
-                            srcName = "Direct";
-                            break;
-                        case SourceEnum::Local:
-                            srcName = "Local";
-                            break;
-                        case SourceEnum::Global:
-                            srcName = "Global";
-                            break;
-                    }
-                    s.sourceCounts[srcName]++;
+                    s.sourceCounts[extractSource (dbg)]++;
                 }
 
-                // Smoothing iterations
                 s.smoothingIterations.push_back (dbg->smoothingIterations);
 
-                // Path Cost - Check last step for stats
                 if (success && !dbg->history.empty ())
                 {
                     s.pathCosts.push_back (dbg->history.back ().stats.totalCost);
@@ -168,16 +161,16 @@ namespace
             }
         }
 
-        const std::map<std::string, PlannerStats> &getStats () const { return stats_; }
+        const std::map<std::string, PlannerStats, std::less<>> &getStats () const { return stats_; }
 
       private:
-        std::map<std::string, PlannerStats> stats_;
-        std::mutex mutex_;
+        mutable std::map<std::string, PlannerStats, std::less<>> stats_;
+        mutable std::mutex mutex_;
     };
 
-} // namespace
+    inline const StatsAggregator g_stats;
 
-/* ───────── helpers ───────── */
+} // namespace
 
 /// @brief Square helper.
 template <typename T> [[nodiscard]] constexpr double sqr (T v) noexcept
@@ -190,8 +183,6 @@ template <typename T> [[nodiscard]] constexpr double sqr (T v) noexcept
 {
     return std::sqrt (sqr (a.x - b.x) + sqr (a.y - b.y));
 }
-
-/* ───────── engine-config triple for extensibility ───────── */
 
 /// @brief Bundle types for typed tests.
 template <class SteeringT, class SearchT, class SkeletonT> struct EngineConfig
@@ -225,7 +216,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     using EngineT = engine::SearchEngine<SteeringT, SearchT, SkeletonT>;
     using ConnectorT = typename EngineT::ConnectorType;
 
-    EngineFixture () : randomEngine_ (42), unitUniform_ (0.0, 1.0) {}
+    EngineFixture () = default;
 
     /**
      * @brief Pick a random interior (x,y) within the workspace envelope.
@@ -238,8 +229,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         bg::model::box<Point> bb;
         bg::envelope (workspace.region (), bb);
 
-        std::uniform_real_distribution<double> ux (bb.min_corner ().x (), bb.max_corner ().x ());
-        std::uniform_real_distribution<double> uy (bb.min_corner ().y (), bb.max_corner ().y ());
+        std::uniform_real_distribution ux (bb.min_corner ().x (), bb.max_corner ().x ());
+        std::uniform_real_distribution uy (bb.min_corner ().y (), bb.max_corner ().y ());
 
         do
         {
@@ -249,7 +240,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
     }
 
     /// @brief Sample heading uniformly in [0, 2π).
-    double sampleHeading () { return std::uniform_real_distribution<double> (0.0, PI2) (randomEngine_); }
+    double sampleHeading () { return std::uniform_real_distribution (0.0, PI2) (randomEngine_); }
 
     /**
      * @brief Ensure the sampled pose meets the “local reachability” rule via half-disks.
@@ -278,8 +269,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         else
         {
             // Reeds–Shepp: either direction is fine.
-            const bool fwd = halfDiskInside (workspace, s.x, s.y, s.heading, radius, true);
-            if (fwd)
+            if (const bool fwd = halfDiskInside (workspace, s.x, s.y, s.heading, radius, true); fwd)
                 return true;
             return halfDiskInside (workspace, s.x, s.y, s.heading, radius, false);
         }
@@ -403,36 +393,47 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         return eng;
     }
 
+    struct RenderContext
+    {
+        int id;
+        std::string_view label;
+        bool ok;
+        const EngineT &engine;
+        const typename EngineT::DebugInfo &dbg;
+        const State &start;
+        const State &goal;
+        std::optional<Robot> robot = std::nullopt;
+    };
+
     /**
      * @brief Saves debug artifacts (SVGs) to the build directory.
      *
      */
-    void saveDebugArtifacts ([[maybe_unused]] int id, [[maybe_unused]] std::string_view label, [[maybe_unused]] bool ok, [[maybe_unused]] const EngineT &engine,
-                             [[maybe_unused]] const typename EngineT::DebugInfo &dbg, [[maybe_unused]] const State &start, [[maybe_unused]] const State &goal,
-                             [[maybe_unused]] const std::optional<Robot> &robot = std::nullopt)
+    void saveDebugArtifacts ([[maybe_unused]] const RenderContext &ctx) const
     {
 #ifdef AG_ENABLE_PLOTS
         int stepIdx = 0;
-        for (const auto &step : dbg.history)
+        for (const auto &step : ctx.dbg.history)
         {
-            const char *tag = ok ? "ok" : "fail";
+            const char *tag = ctx.ok ? "ok" : "fail";
             std::string safeName = step.name;
-            std::replace (safeName.begin (), safeName.end (), ' ', '_');
+            std::ranges::replace (safeName, ' ', '_');
 
             std::ostringstream fn;
-            fn << tag << "_" << (robot ? "fp_" : "") << id << "_step_" << stepIdx++ << "_" << safeName << ".svg";
-            auto outPath = arcgen::utils::plotFile ({"engine", Cfg::name (), std::string (label)}, fn.str ());
+            fn << tag << "_" << (ctx.robot ? "fp_" : "") << ctx.id << "_step_" << stepIdx << "_" << safeName << ".svg";
+            stepIdx++;
+            auto outPath = arcgen::utils::plotFile ({"engine", Cfg::name (), std::string (ctx.label)}, fn.str ());
 
             Visualizer svg (outPath.string (), 900);
             const auto &pal = svg.getPalette ();
 
-            if (auto wptr = engine.getWorkspace ())
+            if (auto wptr = ctx.engine.getWorkspace ())
             {
                 svg.drawRegion (*wptr);
             }
-            if (dbg.graph)
+            if (ctx.dbg.graph)
             {
-                svg.drawSkeleton (*dbg.graph);
+                svg.drawSkeleton (*ctx.dbg.graph);
             }
 
             svg.drawPath (step.path);
@@ -446,19 +447,19 @@ template <class Cfg> class EngineFixture : public ::testing::Test
                 svg.drawPose (s, 9.0, pal.anchor);
 
             // Draw robot footprint outlines along the step path if robot is present
-            if (robot && !step.path.empty ())
+            if (ctx.robot && !step.path.empty ())
             {
                 const std::size_t n = step.path.size ();
                 for (std::size_t i = 0; i < n; ++i)
-                    svg.drawPolygon (robot->at (step.path[i]), "none", pal.robotFill, 0.8, 1.0);
+                    svg.drawPolygon (ctx.robot->at (step.path[i]), "none", pal.robotFill, 0.8, 1.0);
             }
 
-            svg.drawStartPose (start);
-            svg.drawGoalPose (goal);
-            if (robot)
+            svg.drawStartPose (ctx.start);
+            svg.drawGoalPose (ctx.goal);
+            if (ctx.robot)
             {
-                svg.drawPolygon (robot->at (start), "none", pal.robotFill, 0.8, 1.0);
-                svg.drawPolygon (robot->at (goal), "none", pal.robotFill, 0.8, 1.0);
+                svg.drawPolygon (ctx.robot->at (ctx.start), "none", pal.robotFill, 0.8, 1.0);
+                svg.drawPolygon (ctx.robot->at (ctx.goal), "none", pal.robotFill, 0.8, 1.0);
             }
 
             svg.drawAxes ();
@@ -482,9 +483,9 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         // Infer workspace type from label (e.g., "random", "maze", "random_fp", "maze_fp")
         // Simple heuristic: check if it contains "random" or "maze"
         std::string wsType = "Unknown";
-        if (label.find ("random") != std::string_view::npos)
+        if (label.contains ("random"))
             wsType = "Random";
-        else if (label.find ("maze") != std::string_view::npos)
+        else if (label.contains ("maze"))
             wsType = "Maze";
 
         // Construct unique config name
@@ -492,13 +493,13 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         // Key Format: "[Steering] [Workspace] [Footprint] [Local/Default]"
         cfgName << Cfg::name () << " [" << wsType << "]" << (fp ? " (Footprint)" : "") << (localSearch ? " [Local]" : " [Default]");
 
-        StatsAggregator::instance ().addResult (cfgName.str (), params.str (), ok, &dbg);
+        g_stats.addResult (cfgName.str (), params.str (), ok, &dbg);
     }
 
     /**
      * @brief Run one plan() given a fixed start/goal and configuration.
      */
-    void runOneWithState (const std::shared_ptr<Workspace> &workspace, const State &start, const State &goal, int id, std::string_view label, bool enableLocalSearch)
+    void runOneWithState (const std::shared_ptr<Workspace> &workspace, State start, State goal, int id, std::string_view label, bool enableLocalSearch)
     {
         auto engine = makeEngine (workspace, enableLocalSearch, LOCAL_BB_MARGIN);
 
@@ -506,8 +507,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         typename EngineT::DebugInfo *dbgPtr = &dbg; // Always pass dbg for stats, even if plots disabled
 
         std::vector<State> path;
-        auto result = engine->plan (const_cast<State &> (start), const_cast<State &> (goal), dbgPtr);
-        if (result)
+        if (auto result = engine->plan (start, goal, dbgPtr))
             path = *result;
 
         bool ok = true;
@@ -531,7 +531,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         collectStats (label, ok, *engine, dbg, false, enableLocalSearch, LOCAL_BB_MARGIN);
 
 #ifdef AG_ENABLE_PLOTS
-        saveDebugArtifacts (id, label, ok, *engine, dbg, start, goal);
+        saveDebugArtifacts ({id, label, ok, *engine, dbg, start, goal});
 #endif
 
         ASSERT_TRUE (ok) << "Case " << id << " (" << label << ") failed: " << why.str ();
@@ -542,7 +542,8 @@ template <class Cfg> class EngineFixture : public ::testing::Test
      */
     void runOneOnWorkspace (const std::shared_ptr<Workspace> &workspace, int id, [[maybe_unused]] std::string_view labelPrefix)
     {
-        State start{}, goal{};
+        State start{};
+        State goal{};
         samplePoseStart (*workspace, start);
         samplePoseGoal (*workspace, goal);
 
@@ -550,20 +551,25 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         runOneWithState (workspace, start, goal, id, std::string (labelPrefix) + "_local", true);
     }
 
+    struct FootprintOptions
+    {
+        const Robot &robot;
+        double localBBMargin;
+    };
+
     /**
      * @brief Run one plan() with footprint given a fixed start/goal.
      */
-    void runOneWithStateFootprint (const std::shared_ptr<Workspace> &workspace, const State &start, const State &goal, int id, std::string_view label, bool enableLocalSearch,
-                                   const Robot &robot, double localBBMargin)
+    void runOneWithStateFootprint (const std::shared_ptr<Workspace> &workspace, State start, State goal, int id, std::string_view label, bool enableLocalSearch,
+                                   const FootprintOptions &fpOpts)
     {
-        auto engine = makeEngineWithFootprint (workspace, enableLocalSearch, localBBMargin);
+        auto engine = makeEngineWithFootprint (workspace, enableLocalSearch, fpOpts.localBBMargin);
 
         typename EngineT::DebugInfo dbg;
         typename EngineT::DebugInfo *dbgPtr = &dbg;
 
         std::vector<State> path;
-        auto result = engine->plan (const_cast<State &> (start), const_cast<State &> (goal), dbgPtr);
-        if (result)
+        if (auto result = engine->plan (start, goal, dbgPtr))
             path = *result;
 
         bool ok = true;
@@ -584,7 +590,7 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         {
             for (std::size_t i = 0; i < path.size (); ++i)
             {
-                if (!workspace->coveredBy (robot.at (path[i])))
+                if (!workspace->coveredBy (fpOpts.robot.at (path[i])))
                     badIdx.push_back (i);
             }
 
@@ -595,10 +601,10 @@ template <class Cfg> class EngineFixture : public ::testing::Test
             }
         }
 
-        collectStats (label, ok, *engine, dbg, true, enableLocalSearch, localBBMargin);
+        collectStats (label, ok, *engine, dbg, true, enableLocalSearch, fpOpts.localBBMargin);
 
 #ifdef AG_ENABLE_PLOTS
-        saveDebugArtifacts (id, label, ok, *engine, dbg, start, goal, robot);
+        saveDebugArtifacts ({id, label, ok, *engine, dbg, start, goal, fpOpts.robot});
 #endif
 
         ASSERT_TRUE (ok) << "Footprint case " << id << " (" << label << ") failed: " << why.str ();
@@ -612,32 +618,31 @@ template <class Cfg> class EngineFixture : public ::testing::Test
         // Use the same footprint as makeEngineWithFootprint for prechecks & validation
         Robot robot = Robot::rectangle (ROBOT_LEN, ROBOT_WID);
 
-        State start{}, goal{};
+        State start{};
+        State goal{};
         // Sample start/goal using footprint-aware reachability and ensure the footprint fits
         samplePoseStart (*workspace, start, /*withFootprint=*/true);
         samplePoseGoal (*workspace, goal, /*withFootprint=*/true);
 
-        runOneWithStateFootprint (workspace, start, goal, id, std::string (labelPrefix), false, robot, LOCAL_BB_MARGIN);
-        runOneWithStateFootprint (workspace, start, goal, id, std::string (labelPrefix) + "_local", true, robot, LOCAL_BB_MARGIN);
+        FootprintOptions opts{robot, LOCAL_BB_MARGIN};
+        runOneWithStateFootprint (workspace, start, goal, id, std::string (labelPrefix), false, opts);
+        runOneWithStateFootprint (workspace, start, goal, id, std::string (labelPrefix) + "_local", true, opts);
     }
 
   private:
-    std::mt19937 randomEngine_;
-    std::uniform_real_distribution<double> unitUniform_; // kept for future extensions
+    std::mt19937 randomEngine_{42};                                // NOSONAR
+    std::uniform_real_distribution<double> unitUniform_{0.0, 1.0}; // kept for future extensions
 };
 
-/* ───────── instantiate engine combos here (extensible) ───────── */
 using GraphT = arcgen::planner::geometry::Graph;
 using TestedEngines = ::testing::Types<EngineConfig<Dubins, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>,
                                        EngineConfig<ReedsShepp, AStar<GraphT>, arcgen::planner::geometry::StraightSkeleton>>;
 TYPED_TEST_SUITE (EngineFixture, TestedEngines);
 
-/* ───────── tests over predefined and random workspaces ───────── */
-
 /// @test Random workspaces (fresh geometry every iteration).
 TYPED_TEST (EngineFixture, PlansWithinRandomWorkspaces)
 {
-    std::mt19937 randomEngine (123);
+    std::mt19937 randomEngine (123); // NOSONAR
     for (int k = 0; k < SAMPLES; ++k)
     {
         auto workspace = arcgen::utils::randomWorkspace (randomEngine);
@@ -656,7 +661,7 @@ TYPED_TEST (EngineFixture, PlansWithinMazeWorkspace)
 /// @test Random workspaces with footprint-aware collision.
 TYPED_TEST (EngineFixture, PlansWithinRandomWorkspacesWithFootprint)
 {
-    std::mt19937 randomEngine (456);
+    std::mt19937 randomEngine (456); // NOSONAR
     for (int k = 0; k < SAMPLES; ++k)
     {
         auto workspace = arcgen::utils::randomWorkspace (randomEngine);
@@ -688,13 +693,13 @@ class TestReportEnvironment : public ::testing::Environment
     {
         if (v.empty ())
             return 0.0;
-        return *std::min_element (v.begin (), v.end ());
+        return std::ranges::min (v);
     }
     static double getMax (const std::vector<double> &v)
     {
         if (v.empty ())
             return 0.0;
-        return *std::max_element (v.begin (), v.end ());
+        return std::ranges::max (v);
     }
     static double getStdDev (const std::vector<double> &v)
     {
@@ -714,7 +719,7 @@ class TestReportEnvironment : public ::testing::Environment
   public:
     void TearDown () override
     {
-        const auto &stats = StatsAggregator::instance ().getStats ();
+        const auto &stats = g_stats.getStats ();
         if (stats.empty ())
             return;
 
@@ -728,7 +733,7 @@ class TestReportEnvironment : public ::testing::Environment
     }
 
   private:
-    void writeTextReport (const std::filesystem::path &path, const std::map<std::string, PlannerStats> &stats)
+    void writeTextReport (const std::filesystem::path &path, const std::map<std::string, PlannerStats, std::less<>> &stats) const
     {
         std::ofstream p (path);
         if (!p)
@@ -739,41 +744,43 @@ class TestReportEnvironment : public ::testing::Environment
           << "========================================================================\n\n";
 
         for (const auto &[name, s] : stats)
-        {
-            p << "Configuration: " << name << "\n";
-            p << "  Parameters: " << s.parameters << "\n";
-            p << "  Stats:\n";
-            double successRate = s.samples > 0 ? (100.0 * s.successes / s.samples) : 0.0;
-            p << std::fixed << std::setprecision (1);
-            p << "    - Success Rate: " << successRate << "% (" << s.successes << "/" << s.samples << ")\n";
-
-            if (s.successes > 0)
-            {
-                p << std::fixed << std::setprecision (5);
-                p << "    - Total Time (s): Avg=" << getMean (s.computationTimes) << " Min=" << getMin (s.computationTimes) << " Max=" << getMax (s.computationTimes)
-                  << " Std=" << getStdDev (s.computationTimes) << "\n";
-
-                p << "    - Time Breakdown (Avg s): "
-                  << "Skel=" << getMean (s.componentTimes_Skeleton) << ", Search=" << getMean (s.componentTimes_Search) << ", Conn=" << getMean (s.componentTimes_Connection)
-                  << "\n";
-
-                p << "    - Path Cost (Avg): " << getMean (s.pathCosts) << "\n";
-
-                p << "    - Smoothing Iters (Avg): " << getMeanInt (s.smoothingIterations) << "\n";
-
-                if (!s.sourceCounts.empty ())
-                {
-                    p << "    - Source Distribution: ";
-                    for (const auto &[src, count] : s.sourceCounts)
-                        p << src << ":" << count << " ";
-                    p << "\n";
-                }
-            }
-            p << "------------------------------------------------------------------------\n\n";
-        }
+            writeOneConfigReport (p, name, s);
     }
 
-    void writeCsvReport (const std::filesystem::path &path, const std::map<std::string, PlannerStats> &stats)
+    void writeOneConfigReport (std::ofstream &p, const std::string &name, const PlannerStats &s) const
+    {
+        p << "Configuration: " << name << "\n";
+        p << "  Parameters: " << s.parameters << "\n";
+        p << "  Stats:\n";
+        double successRate = s.samples > 0 ? (100.0 * s.successes / s.samples) : 0.0;
+        p << std::fixed << std::setprecision (1);
+        p << "    - Success Rate: " << successRate << "% (" << s.successes << "/" << s.samples << ")\n";
+
+        if (s.successes > 0)
+        {
+            p << std::fixed << std::setprecision (5);
+            p << "    - Total Time (s): Avg=" << getMean (s.computationTimes) << " Min=" << getMin (s.computationTimes) << " Max=" << getMax (s.computationTimes)
+              << " Std=" << getStdDev (s.computationTimes) << "\n";
+
+            p << "    - Time Breakdown (Avg s): "
+              << "Skel=" << getMean (s.componentTimes_Skeleton) << ", Search=" << getMean (s.componentTimes_Search) << ", Conn=" << getMean (s.componentTimes_Connection) << "\n";
+
+            p << "    - Path Cost (Avg): " << getMean (s.pathCosts) << "\n";
+
+            p << "    - Smoothing Iters (Avg): " << getMeanInt (s.smoothingIterations) << "\n";
+
+            if (!s.sourceCounts.empty ())
+            {
+                p << "    - Source Distribution: ";
+                for (const auto &[src, count] : s.sourceCounts)
+                    p << src << ":" << count << " ";
+                p << "\n";
+            }
+        }
+        p << "------------------------------------------------------------------------\n\n";
+    }
+
+    void writeCsvReport (const std::filesystem::path &path, const std::map<std::string, PlannerStats, std::less<>> &stats) const
     {
         std::ofstream p (path);
         if (!p)
@@ -816,6 +823,11 @@ class TestReportEnvironment : public ::testing::Environment
     }
 };
 
-::testing::Environment *const reportEnv = ::testing::AddGlobalTestEnvironment (new TestReportEnvironment);
+// Register environment using a self-executing lambda/dummy to avoid global pointer warnings (S5421)
+const int envRegistration = [] ()
+{
+    ::testing::AddGlobalTestEnvironment (new TestReportEnvironment);
+    return 0;
+}();
 
 #endif

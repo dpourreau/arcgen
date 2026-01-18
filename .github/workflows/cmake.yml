@@ -13,16 +13,40 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    # 1. Setup Ccache (This handles key generation and saving/restoring automatically)
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: coverage-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+
+    # 2. Install Deps (Added 'ccache' to apt-get just in case, though action usually handles it)
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libboost-all-dev libcgal-dev ninja-build
+        sudo apt-get install -y libboost-all-dev libcgal-dev ninja-build ccache
 
+    # 3. Configure (Your CMakeLists.txt already detects ccache automatically!)
     - name: Configure CMake
-      run: cmake --preset release-tests
+      run: cmake --preset coverage
 
+    # 4. Build
     - name: Build
-      run: cmake --build --preset release-tests
+      run: cmake --build --preset coverage
 
+    # 5. Test (Added --parallel to use all cores)
     - name: Test
-      run: ctest --preset release-tests
+      run: ctest --preset coverage --parallel $(nproc)
+
+    - name: Generate Coverage Report
+      run: |
+        pip install gcovr
+        # Added -j for parallel gcovr processing
+        gcovr -r . --sonarqube -o coverage.xml \
+          --exclude-directories "tests|build/coverage/_deps" \
+          -j $(nproc)
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarqube-scan-action@v5.0.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

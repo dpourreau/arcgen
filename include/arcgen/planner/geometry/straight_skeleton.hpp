@@ -55,14 +55,20 @@ namespace arcgen::planner::geometry
             return poly;
         }
 
-        /// @brief Ensure polygon is counter-clockwise oriented (reverses in place if needed).
+        /**
+         * @brief Ensure polygon is counter-clockwise oriented (reverses in place if needed).
+         * @param p Polygon to check/reverse.
+         */
         inline void ensureCcw (CGALPolygon &p)
         {
             if (!p.is_counterclockwise_oriented ())
                 p.reverse_orientation ();
         }
 
-        /// @brief Ensure polygon is clockwise oriented (reverses in place if needed).
+        /**
+         * @brief Ensure polygon is clockwise oriented (reverses in place if needed).
+         * @param p Polygon to check/reverse.
+         */
         inline void ensureCw (CGALPolygon &p)
         {
             if (!p.is_clockwise_oriented ())
@@ -87,16 +93,16 @@ namespace arcgen::planner::geometry
          */
         struct VertexMapper
         {
-            Graph &graph_;                                                        ///< Target Boost graph.
-            const Workspace &workspace_;                                          ///< Workspace used to filter interior vertices.
-            CGAL::Unique_hash_map<VertexHandle, Graph::vertex_descriptor> cache_; ///< CGAL→Boost cache.
+            Graph &graph_;                                                                                                    ///< Target Boost graph.
+            const Workspace &workspace_;                                                                                      ///< Workspace used to filter interior vertices.
+            CGAL::Unique_hash_map<VertexHandle, Graph::vertex_descriptor> cache_{boost::graph_traits<Graph>::null_vertex ()}; ///< CGAL→Boost cache.
 
             /**
              * @brief Construct a mapper bound to a graph and workspace.
              * @param graph      Output Boost graph to receive vertices.
              * @param workspace  Valid region used to filter interior vertices.
              */
-            explicit VertexMapper (Graph &graph, const Workspace &workspace) : graph_ (graph), workspace_ (workspace), cache_ (boost::graph_traits<Graph>::null_vertex ()) {}
+            explicit VertexMapper (Graph &graph, const Workspace &workspace) : graph_ (graph), workspace_ (workspace) {}
 
             /**
              * @brief Get (or create and cache) a Boost vertex for a CGAL vertex.
@@ -180,12 +186,12 @@ namespace arcgen::planner::geometry
                         continue;
 
                     // Process each undirected bisector edge only once.
-                    if (&*he > &*(he->opposite ()))
+                    if (std::to_address (he) > std::to_address (he->opposite ()))
                         continue;
 
                     auto v0 = mapper.get (he->opposite ()->vertex ());
                     auto v1 = mapper.get (he->vertex ());
-                    if (!v0 || !v1)
+                    if (!v0.has_value () || !v1.has_value ())
                         continue; // one endpoint on the border
 
                     const Point p0 = graph[*v0];

@@ -24,9 +24,6 @@
 
 namespace arcgen::steering
 {
-    /*───────────────────────────────────────────────────────────────────────*
-     * Compile-time configuration
-     *───────────────────────────────────────────────────────────────────────*/
     /// @brief Number of segments in a Dubins shortest path.
     inline constexpr std::size_t DUBINS_SEGS = 3;
 
@@ -54,8 +51,6 @@ namespace arcgen::steering
          */
         constexpr explicit Dubins (double rMin, double ds = 0.05) noexcept : SteeringBase<Dubins, DUBINS_SEGS> (rMin, ds) {}
 
-        /*────────────── Public aliases ─────────────────────────────────*/
-
         /// @brief Fixed-size segment pattern (3 entries).
         using ThreeSeg = std::array<Segment, DUBINS_SEGS>;
         /// @brief Arc descriptor produced by this policy.
@@ -76,50 +71,43 @@ namespace arcgen::steering
             const double th = std::atan2 (dy, dx);
 
             const double d = std::hypot (dx, dy) * this->getKappa (); // scaled
-            const double a = normalizeAngle2Pi (s1.heading - th);
-            const double b = normalizeAngle2Pi (s2.heading - th);
+            const double a = arcgen::core::normalizeAngle2Pi (s1.heading - th);
+            const double b = arcgen::core::normalizeAngle2Pi (s2.heading - th);
 
-            /* easy zero-distance special-case */
             if (d < arcgen::core::dubins_tol && std::fabs (a - b) < arcgen::core::dubins_tol)
             {
                 paths.push_back (makePath (PATH_TYPES[0], 0, 0, 0));
                 return paths;
             }
 
-            const double ca = std::cos (a), sa = std::sin (a);
-            const double cb = std::cos (b), sb = std::sin (b);
+            const double ca = std::cos (a);
+            const double sa = std::sin (a);
+            const double cb = std::cos (b);
+            const double sb = std::sin (b);
 
-            auto lsl = LSL (d, a, b, ca, sa, cb, sb);
-            if (lsl)
-                paths.push_back (*lsl);
+            if (auto p = lsl (d, a, b, ca, sa, cb, sb); p)
+                paths.push_back (*p);
 
-            auto rsr = RSR (d, a, b, ca, sa, cb, sb);
-            if (rsr)
-                paths.push_back (*rsr);
+            if (auto p = rsr (d, a, b, ca, sa, cb, sb); p)
+                paths.push_back (*p);
 
-            auto rsl = RSL (d, a, b, ca, sa, cb, sb);
-            if (rsl)
-                paths.push_back (*rsl);
+            if (auto p = rsl (d, a, b, ca, sa, cb, sb); p)
+                paths.push_back (*p);
 
-            auto lsr = LSR (d, a, b, ca, sa, cb, sb);
-            if (lsr)
-                paths.push_back (*lsr);
+            if (auto p = lsr (d, a, b, ca, sa, cb, sb); p)
+                paths.push_back (*p);
 
-            auto rlr = RLR (d, a, b, ca, sa, cb, sb);
-            if (rlr)
-                paths.push_back (*rlr);
+            if (auto p = rlr (d, a, b, ca, sa, cb, sb); p)
+                paths.push_back (*p);
 
-            auto lrl = LRL (d, a, b, ca, sa, cb, sb);
-            if (lrl)
-                paths.push_back (*lrl);
+            if (auto p = lrl (d, a, b, ca, sa, cb, sb); p)
+                paths.push_back (*p);
 
-            std::sort (paths.begin (), paths.end (), [this] (const auto &pathA, const auto &pathB) { return this->shorter (pathA, pathB); });
+            std::ranges::sort (paths, [this] (const auto &pathA, const auto &pathB) { return this->shorter (pathA, pathB); });
             return paths;
         }
 
       private:
-        /*────────────── Static data — segment patterns ─────────────────*/
-
         /// @brief All Dubins segment patterns considered by this policy.
         static constexpr auto PATH_TYPES = std::to_array<ThreeSeg> (
             {{LEFT, STRAIGHT, LEFT}, {RIGHT, STRAIGHT, RIGHT}, {RIGHT, STRAIGHT, LEFT}, {LEFT, STRAIGHT, RIGHT}, {RIGHT, LEFT, RIGHT}, {LEFT, RIGHT, LEFT}});
@@ -134,98 +122,85 @@ namespace arcgen::steering
          */
         [[nodiscard]] constexpr DubinsPath makePath (const ThreeSeg &pattern, double s0, double s1, double s2) const noexcept { return {&pattern, {s0, s1, s2}}; }
 
-        /*──────────── Low-level primitive families ─────────────────────*
-         * Each routine returns the shortest candidate for its family or
-         * std::nullopt if the family is infeasible for the given geometry.
-         * Segment parameters are expressed in units of 1/r (i.e., scaled by
-         * the curvature magnitude); the base multiplies them by rMin later.
-         *───────────────────────────────────────────────────────────────*/
-
-        [[nodiscard]] constexpr std::optional<DubinsPath> LSL (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
+        [[nodiscard]] constexpr std::optional<DubinsPath> lsl (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sa - sb));
-            if (tmp >= core::dubins_zero_tol)
+            if (const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sa - sb)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double th = std::atan2 (cb - ca, d + sa - sb);
-                const double t = normalizeAngle2Pi (-a + th);
+                const double t = arcgen::core::normalizeAngle2Pi (-a + th);
                 const double p = std::sqrt (std::max (tmp, 0.0));
-                const double q = normalizeAngle2Pi (b - th);
+                const double q = arcgen::core::normalizeAngle2Pi (b - th);
                 return makePath (PATH_TYPES[0], t, p, q);
             }
             return std::nullopt;
         }
 
-        [[nodiscard]] constexpr std::optional<DubinsPath> RSR (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
+        [[nodiscard]] constexpr std::optional<DubinsPath> rsr (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sb - sa));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = 2. + d * d - 2. * (ca * cb + sa * sb - d * (sb - sa)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double th = std::atan2 (ca - cb, d - sa + sb);
-                const double t = normalizeAngle2Pi (a - th);
+                const double t = arcgen::core::normalizeAngle2Pi (a - th);
                 const double p = std::sqrt (std::max (tmp, 0.0));
-                const double q = normalizeAngle2Pi (-b + th);
+                const double q = arcgen::core::normalizeAngle2Pi (-b + th);
                 return makePath (PATH_TYPES[1], t, p, q);
             }
             return std::nullopt;
         }
 
-        [[nodiscard]] constexpr std::optional<DubinsPath> RSL (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
+        [[nodiscard]] constexpr std::optional<DubinsPath> rsl (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = d * d - 2. + 2. * (ca * cb + sa * sb - d * (sa + sb));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = d * d - 2. + 2. * (ca * cb + sa * sb - d * (sa + sb)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double p = std::sqrt (std::max (tmp, 0.0));
                 const double th = std::atan2 (ca + cb, d - sa - sb) - std::atan2 (2.0, p);
-                const double t = normalizeAngle2Pi (a - th);
-                const double q = normalizeAngle2Pi (b - th);
+                const double t = arcgen::core::normalizeAngle2Pi (a - th);
+                const double q = arcgen::core::normalizeAngle2Pi (b - th);
                 return makePath (PATH_TYPES[2], t, p, q);
             }
             return std::nullopt;
         }
 
-        [[nodiscard]] constexpr std::optional<DubinsPath> LSR (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
+        [[nodiscard]] constexpr std::optional<DubinsPath> lsr (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = -2. + d * d + 2. * (ca * cb + sa * sb + d * (sa + sb));
-            if (tmp >= arcgen::core::dubins_zero_tol)
+            if (const double tmp = -2. + d * d + 2. * (ca * cb + sa * sb + d * (sa + sb)); tmp >= arcgen::core::dubins_zero_tol)
             {
                 const double p = std::sqrt (std::max (tmp, 0.0));
                 const double th = std::atan2 (-ca - cb, d + sa + sb) - std::atan2 (-2.0, p);
-                const double t = normalizeAngle2Pi (-a + th);
-                const double q = normalizeAngle2Pi (-b + th);
+                const double t = arcgen::core::normalizeAngle2Pi (-a + th);
+                const double q = arcgen::core::normalizeAngle2Pi (-b + th);
                 return makePath (PATH_TYPES[3], t, p, q);
             }
             return std::nullopt;
         }
 
-        [[nodiscard]] constexpr std::optional<DubinsPath> RLR (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
+        [[nodiscard]] constexpr std::optional<DubinsPath> rlr (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb + d * (sa - sb)));
-            if (std::fabs (tmp) < 1.0)
+            if (const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb + d * (sa - sb))); std::fabs (tmp) < 1.0)
             {
                 const double p = 2. * std::numbers::pi - std::acos (tmp);
                 const double th = std::atan2 (ca - cb, d - sa + sb);
-                const double t = normalizeAngle2Pi (a - th + 0.5 * p);
-                const double q = normalizeAngle2Pi (a - b - t + p);
+                const double t = arcgen::core::normalizeAngle2Pi (a - th + 0.5 * p);
+                const double q = arcgen::core::normalizeAngle2Pi (a - b - t + p);
                 return makePath (PATH_TYPES[4], t, p, q);
             }
             return std::nullopt;
         }
 
-        [[nodiscard]] constexpr std::optional<DubinsPath> LRL (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
+        [[nodiscard]] constexpr std::optional<DubinsPath> lrl (const double &d, const double &a, const double &b, const double &ca, const double &sa, const double &cb,
                                                                const double &sb) const noexcept
         {
-            const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb - d * (sa - sb)));
-            if (std::fabs (tmp) < 1.0)
+            if (const double tmp = 0.125 * (6. - d * d + 2. * (ca * cb + sa * sb - d * (sa - sb))); std::fabs (tmp) < 1.0)
             {
                 const double p = 2. * std::numbers::pi - std::acos (tmp);
                 const double th = std::atan2 (-ca + cb, d + sa - sb);
-                const double t = normalizeAngle2Pi (-a + th + 0.5 * p);
-                const double q = normalizeAngle2Pi (b - a - t + p);
+                const double t = arcgen::core::normalizeAngle2Pi (-a + th + 0.5 * p);
+                const double q = arcgen::core::normalizeAngle2Pi (b - a - t + p);
                 return makePath (PATH_TYPES[5], t, p, q);
             }
             return std::nullopt;

@@ -9,7 +9,8 @@ namespace
 {
     struct TestPoint
     {
-        double x_val, y_val;
+        double x_val;
+        double y_val;
         double x () const { return x_val; }
         double y () const { return y_val; }
     };
@@ -19,8 +20,8 @@ namespace
 
 class AStarFixture : public ::testing::Test
 {
-  protected:
-    AStar<Graph> searcher_;
+  public:
+    [[no_unique_address]] AStar<Graph> searcher_;
     Graph g_;
 
     void addVertex (double x, double y) { boost::add_vertex (TestPoint{x, y}, g_); }
@@ -162,17 +163,17 @@ TEST_F (AStarFixture, Grid10x10)
     {
         for (int x = 0; x < 10; ++x)
         {
-            std::size_t u = static_cast<std::size_t> (y * 10 + x);
+            auto u = static_cast<std::size_t> (y * 10 + x);
             // Right neighbor
             if (x < 9)
             {
-                std::size_t v = static_cast<std::size_t> (y * 10 + (x + 1));
+                auto v = static_cast<std::size_t> (y * 10 + (x + 1));
                 addEdge (u, v, 1.0);
             }
             // Up neighbor
             if (y < 9)
             {
-                std::size_t v = static_cast<std::size_t> ((y + 1) * 10 + x);
+                auto v = static_cast<std::size_t> ((y + 1) * 10 + x);
                 addEdge (u, v, 1.0);
             }
         }

@@ -11,6 +11,7 @@
 #include <arcgen/core/state.hpp>
 #include <arcgen/steering/path.hpp>
 
+#include <algorithm>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -37,7 +38,7 @@ namespace arcgen::planner::constraints
          *
          * Implementations typically call the steering policy's integration.
          */
-        std::function<void (Path<N> &)> ensureStates;
+        std::function<void (const Path<N> &)> ensureStates;
     };
 
     /**
@@ -46,6 +47,11 @@ namespace arcgen::planner::constraints
      */
     template <std::size_t N> struct HardConstraint
     {
+        HardConstraint () = default;
+        HardConstraint (const HardConstraint &) = default;
+        HardConstraint (HardConstraint &&) noexcept = default;
+        HardConstraint &operator= (const HardConstraint &) = default;
+        HardConstraint &operator= (HardConstraint &&) noexcept = default;
         virtual ~HardConstraint () = default;
 
         /**
@@ -63,6 +69,11 @@ namespace arcgen::planner::constraints
      */
     template <std::size_t N> struct SoftConstraint
     {
+        SoftConstraint () = default;
+        SoftConstraint (const SoftConstraint &) = default;
+        SoftConstraint (SoftConstraint &&) noexcept = default;
+        SoftConstraint &operator= (const SoftConstraint &) = default;
+        SoftConstraint &operator= (SoftConstraint &&) noexcept = default;
         virtual ~SoftConstraint () = default;
 
         /**
@@ -99,10 +110,7 @@ namespace arcgen::planner::constraints
          */
         [[nodiscard]] bool feasible (const Path<N> &cand, const EvalContext<N> &ctx) const noexcept
         {
-            for (const auto &c : hard)
-                if (!c->accept (cand, ctx))
-                    return false;
-            return true;
+            return std::ranges::all_of (hard, [&cand, &ctx] (const auto &c) { return c->accept (cand, ctx); });
         }
 
         /**

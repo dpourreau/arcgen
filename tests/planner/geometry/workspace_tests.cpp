@@ -15,7 +15,7 @@ namespace bg = boost::geometry;
 /// @brief Test fixture for Workspace geometry operations.
 class WorkspaceFixture : public ::testing::Test
 {
-  protected:
+  public:
     // Helper to create a polygon from WKT
     static Polygon fromWKT (const std::string &wkt)
     {
@@ -45,7 +45,7 @@ TEST_F (WorkspaceFixture, ConstructionWithObstacles)
 {
     // Hole in the middle: 4x4 box at (3,3)
     std::vector<Polygon> obstacles;
-    obstacles.push_back (fromWKT ("POLYGON((3 3, 7 3, 7 7, 3 7, 3 3))"));
+    obstacles.emplace_back (fromWKT ("POLYGON((3 3, 7 3, 7 7, 3 7, 3 3))"));
 
     Workspace ws (outer_, obstacles);
 
@@ -64,19 +64,20 @@ TEST_F (WorkspaceFixture, ConstructionWithObstacles)
 TEST_F (WorkspaceFixture, PathQuery)
 {
     std::vector<Polygon> obstacles;
-    obstacles.push_back (fromWKT ("POLYGON((3 3, 7 3, 7 7, 3 7, 3 3))"));
+    obstacles.emplace_back (fromWKT ("POLYGON((3 3, 7 3, 7 7, 3 7, 3 3))"));
     Workspace ws (outer_, obstacles);
 
     // Valid path
+    using enum arcgen::core::DrivingDirection;
     std::vector<arcgen::core::State> path1;
-    path1.push_back ({1.0, 1.0, 0, 0, arcgen::core::DrivingDirection::Forward});
-    path1.push_back ({2.0, 2.0, 0, 0, arcgen::core::DrivingDirection::Forward});
+    path1.emplace_back (1.0, 1.0, 0, 0, Forward);
+    path1.emplace_back (2.0, 2.0, 0, 0, Forward);
     EXPECT_TRUE (ws.contains (path1));
 
     // Invalid path (passes through obstacle) - Note: contains(path) only checks waypoints!
     std::vector<arcgen::core::State> path2;
-    path2.push_back ({1.0, 1.0, 0, 0, arcgen::core::DrivingDirection::Forward});
-    path2.push_back ({5.0, 5.0, 0, 0, arcgen::core::DrivingDirection::Forward}); // Inside obstacle
+    path2.emplace_back (1.0, 1.0, 0, 0, Forward);
+    path2.emplace_back (5.0, 5.0, 0, 0, Forward); // Inside obstacle
     EXPECT_FALSE (ws.contains (path2));
 }
 
@@ -125,9 +126,9 @@ TEST_F (WorkspaceFixture, OverlappingObstacles)
 {
     std::vector<Polygon> obs;
     // Box 1: [2, 6] x [2, 6]
-    obs.push_back (fromWKT ("POLYGON((2 2, 6 2, 6 6, 2 6, 2 2))"));
+    obs.emplace_back (fromWKT ("POLYGON((2 2, 6 2, 6 6, 2 6, 2 2))"));
     // Box 2: [4, 8] x [4, 8]  -> Overlap is [4, 6] x [4, 6]
-    obs.push_back (fromWKT ("POLYGON((4 4, 8 4, 8 8, 4 8, 4 4))"));
+    obs.emplace_back (fromWKT ("POLYGON((4 4, 8 4, 8 8, 4 8, 4 4))"));
 
     Workspace ws (outer_, obs);
 
@@ -147,7 +148,7 @@ TEST_F (WorkspaceFixture, CoincidentBoundary)
 {
     std::vector<Polygon> obs;
     // Obstacle touching the left edge: [0, 2] x [2, 8]
-    obs.push_back (fromWKT ("POLYGON((0 2, 2 2, 2 8, 0 8, 0 2))"));
+    obs.emplace_back (fromWKT ("POLYGON((0 2, 2 2, 2 8, 0 8, 0 2))"));
 
     Workspace ws (outer_, obs);
 
@@ -163,7 +164,7 @@ TEST_F (WorkspaceFixture, FullyBlocked)
 {
     // Obstacle covering everything
     std::vector<Polygon> obs;
-    obs.push_back (fromWKT ("POLYGON((-1 -1, 11 -1, 11 11, -1 11, -1 -1))"));
+    obs.emplace_back (fromWKT ("POLYGON((-1 -1, 11 -1, 11 11, -1 11, -1 -1))"));
 
     Workspace ws (outer_, obs);
     EXPECT_TRUE (ws.empty ());

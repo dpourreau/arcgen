@@ -78,3 +78,18 @@ Most editors can be configured to run `clang-format` on save. Keep diffs focused
 - Maintain exception safety (`noexcept` where possible) and correctness first; optimize only when needed.
 - For geometry: ensure polygons are CCW and closed; call `boost::geometry::correct()` where appropriate.
 - Prefer explicit units and clarify geometric frames (e.g., body-frame vs world-frame) in comments.
+
+## Safe Coding Standards (Sonar Way)
+
+ArcGen prioritizes safety and reliability. The "Sonar Way" guidelines are enforced via SonarCloud.
+
+### Key Rules
+- **Namespace Pollution (cpp:S1003)**: Never use `using namespace` in header files. Fully qualify types or use type aliases within a class/function scope.
+- **Static Initialization (cpp:S2629)**: Avoid order-dependent static initialization. Use the "Construct On First Use" idiom (static variable inside a function) for static globals.
+- **Exception Safety (cpp:S5018)**: Move constructors and move assignment operators must be `noexcept`. Use the Rule of Five defaults where possible.
+- **Cognitive Complexity (cpp:S3776, cpp:S134)**: Keep functions simple.
+    - Max Cognitive Complexity: 25.
+    - Max Nesting Depth: 3.
+- **Functional Interfaces (cpp:S6045)**: Prefer templates over `std::function` for callback parameters to avoid overhead and virtual calls.
+- **Lambda Captures (cpp:S5019)**: Avoid implicit captures (`[&]` or `[=]`). Explicitly capture required variables to prevent dangling references and accidental copies.
+

@@ -8,27 +8,6 @@
 
 using namespace arcgen::core;
 
-// Local helpers for testing
-namespace arcgen::core
-{
-    inline bool operator== (const Control &lhs, const Control &rhs)
-    {
-        return lhs.curvature == rhs.curvature && lhs.arcLength == rhs.arcLength;
-    }
-
-    template <std::size_t N> inline bool operator== (const ControlSeq<N> &lhs, const ControlSeq<N> &rhs)
-    {
-        if (lhs.n != rhs.n)
-            return false;
-        for (std::size_t i = 0; i < lhs.n; ++i)
-        {
-            if (!(lhs.buf[i] == rhs.buf[i])) // Uses local operator== for Control
-                return false;
-        }
-        return true;
-    }
-} // namespace arcgen::core
-
 /// @brief Verify DrivingDirection logic.
 TEST (ControlTests, Direction)
 {
@@ -94,7 +73,8 @@ TEST (ControlTests, SequenceClear)
 /// @brief Verify ControlSeq equality.
 TEST (ControlTests, SequenceEquality)
 {
-    ControlSeq<3> s1, s2;
+    ControlSeq<3> s1;
+    ControlSeq<3> s2;
     s1.push_back ({0.1, 10.0});
     s2.push_back ({0.1, 10.0});
     EXPECT_EQ (s1, s2);

@@ -19,7 +19,7 @@ using namespace arcgen::steering;
 /// @brief Test fixture for point-based collision checking.
 class CollisionConstraintFixture : public ::testing::Test
 {
-  protected:
+  public:
     static constexpr std::size_t N = 3;
     using Constraint = CollisionConstraint<N>;
     using Context = EvalContext<N>;
@@ -44,9 +44,9 @@ class CollisionConstraintFixture : public ::testing::Test
         constraint_ = std::make_unique<Constraint> (ws_);
     }
 
-    Context makeContext (const std::vector<State> &statesToInject)
+    Context makeContext (const std::vector<State> &statesToInject) const
     {
-        return Context{dummyState_, dummyState_, [statesToInject] (PathType &p) { p.states = statesToInject; }};
+        return Context{dummyState_, dummyState_, [statesToInject] (const PathType &p) { p.states = statesToInject; }};
     }
 };
 

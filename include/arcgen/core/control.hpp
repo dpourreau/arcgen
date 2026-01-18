@@ -7,6 +7,7 @@
 #include <arcgen/core/numeric.hpp>
 #include <arcgen/core/state.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
@@ -25,8 +26,8 @@ namespace arcgen::core
      */
     struct Control
     {
-        double curvature{}; ///< Signed curvature κ in m⁻¹. κ = 0 ⇒ straight segment.
-        double arcLength{}; ///< Signed arc length s in meters. Sign ⇒ driving direction.
+        double curvature{};
+        double arcLength{};
 
         /**
          * @brief  Driving direction derived from the sign of @ref arcLength.
@@ -34,8 +35,18 @@ namespace arcgen::core
          */
         [[nodiscard]] constexpr DrivingDirection direction () const noexcept
         {
-            return (arcLength > 0.0) ? DrivingDirection::Forward : (arcLength < 0.0) ? DrivingDirection::Reverse : DrivingDirection::Neutral;
+            using enum arcgen::core::DrivingDirection;
+            if (arcLength > 0.0)
+                return Forward;
+            if (arcLength < 0.0)
+                return Reverse;
+            return Neutral;
         }
+
+        /**
+         * @brief Default equality comparison.
+         */
+        bool operator== (const Control &) const = default;
     };
 
     /**
@@ -72,7 +83,8 @@ namespace arcgen::core
             assert (n < N && "ControlSeq overflow");
             if (n >= N)
                 return false;
-            buf[n++] = c;
+            buf[n] = c;
+            n++;
             length += std::fabs (c.arcLength);
             return true;
         }
@@ -82,6 +94,19 @@ namespace arcgen::core
          * @return Span of size @ref n into @ref buf.
          */
         [[nodiscard]] constexpr std::span<const Control> view () const noexcept { return {buf.data (), static_cast<std::size_t> (n)}; }
+
+        /**
+         * @brief Equality comparison for ControlSeq.
+         * @param lhs Left-hand side sequence.
+         * @param rhs Right-hand side sequence.
+         * @return True if both sequences have the same length and content.
+         */
+        friend bool operator== (const ControlSeq &lhs, const ControlSeq &rhs)
+        {
+            if (lhs.n != rhs.n)
+                return false;
+            return std::ranges::equal (lhs.view (), rhs.view ());
+        }
     };
 
     static_assert (std::is_trivially_copyable_v<Control>, "Control must remain trivially copyable");

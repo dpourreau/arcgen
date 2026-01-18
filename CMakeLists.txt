@@ -39,6 +39,16 @@ if (AG_ENABLE_TEST_REPORT)
     add_compile_definitions (AG_ENABLE_TEST_REPORT)
 endif ()
 
+option(AG_ENABLE_COVERAGE "Enable code coverage generation (GCC/Clang)" OFF)
+if(AG_ENABLE_COVERAGE)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(--coverage)
+    add_link_options(--coverage)
+  else()
+    message(WARNING "Coverage not supported for this compiler")
+  endif()
+endif()
+
 # ──────────────────────────────────────────────────────────────
 #  Compiler settings
 # ──────────────────────────────────────────────────────────────
@@ -236,6 +246,7 @@ if(AG_BUILD_TESTS)
     tests/planner/connector/greedy_connector_tests.cpp
     tests/planner/graph/graph_search_tests.cpp
     tests/planner/engine/search_engine_tests.cpp
+    tests/common/utils/visualizer_tests.cpp
 
   )
 
@@ -283,6 +294,7 @@ if(AG_BUILD_TESTS)
       tests/planner/geometry/workspace_tests.cpp
       tests/planner/graph/graph_search_tests.cpp
       tests/planner/engine/search_engine_tests.cpp
+      tests/planner/geometry/straight_skeleton_tests.cpp
     )
     set_source_files_properties(${BOOST_GEOMETRY_TESTS} PROPERTIES 
         COMPILE_OPTIONS "-Wno-maybe-uninitialized")

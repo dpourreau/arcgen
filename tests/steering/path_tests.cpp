@@ -40,9 +40,9 @@ TEST (PathTests, LengthFromStatesFallback)
     // Create a path: (0,0) -> (3,4) -> (3,0)
     // Seg 1: len 5. Seg 2: len 4. Total = 9.
     std::vector<State> sts;
-    sts.push_back ({0, 0, 0});
-    sts.push_back ({3, 4, 0});
-    sts.push_back ({3, 0, 0});
+    sts.emplace_back (0, 0, 0);
+    sts.emplace_back (3, 4, 0);
+    sts.emplace_back (3, 0, 0);
 
     p.states = sts;
 
@@ -57,4 +57,17 @@ TEST (PathTests, LengthFallbackSingleState)
 
     // Only 1 state => length 0
     EXPECT_DOUBLE_EQ (p.length (), 0.0);
+}
+
+TEST (PathTests, LengthFallbackPath5)
+{
+    // Ensure Path<5> instantiation is also covered for the fallback logic
+    Path<5> p;
+    p.controls.n = 0;
+    std::vector<State> sts;
+    sts.emplace_back (0, 0, 0);
+    sts.emplace_back (10, 0, 0);
+    p.states = sts;
+
+    EXPECT_DOUBLE_EQ (p.length (), 10.0);
 }

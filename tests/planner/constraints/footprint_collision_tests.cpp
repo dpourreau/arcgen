@@ -20,7 +20,7 @@ using namespace arcgen::steering;
 /// @brief Test fixture for footprint-based collision checking.
 class FootprintCollisionFixture : public ::testing::Test
 {
-  protected:
+  public:
     static constexpr std::size_t N = 3;
     using Constraint = FootprintCollisionConstraint<N>;
     using Context = EvalContext<N>;
@@ -31,10 +31,7 @@ class FootprintCollisionFixture : public ::testing::Test
     std::unique_ptr<Constraint> constraint_;
     State dummyState_{0, 0, 0};
 
-    // Helper to make a square robot 1x1 centered at (0,0)?
-    // Or maybe 2x2.
-    // Let's make a 1x1 square: (-0.5, -0.5) to (0.5, 0.5)
-    Robot makeBoxRobot ()
+    Robot makeBoxRobot () const
     {
         Polygon poly;
         boost::geometry::read_wkt ("POLYGON((-0.5 -0.5, 0.5 -0.5, 0.5 0.5, -0.5 0.5, -0.5 -0.5))", poly);
@@ -57,9 +54,9 @@ class FootprintCollisionFixture : public ::testing::Test
         constraint_ = std::make_unique<Constraint> (ws_, robot_);
     }
 
-    Context makeContext (const std::vector<State> &statesToInject)
+    Context makeContext (const std::vector<State> &statesToInject) const
     {
-        return Context{dummyState_, dummyState_, [statesToInject] (PathType &p) { p.states = statesToInject; }};
+        return Context{dummyState_, dummyState_, [statesToInject] (const PathType &p) { p.states = statesToInject; }};
     }
 };
 

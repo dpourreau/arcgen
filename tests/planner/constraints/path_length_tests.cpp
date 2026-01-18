@@ -16,7 +16,7 @@ using namespace arcgen::core;
 /// @brief Test fixture for path length cost calculation.
 class PathLengthConstraintTest : public ::testing::Test
 {
-  protected:
+  public:
     static constexpr std::size_t N = 3;
     using Constraint = PathLengthConstraint<N>;
     using PathType = Path<N>;
@@ -24,7 +24,7 @@ class PathLengthConstraintTest : public ::testing::Test
 
     Constraint constraint_;
     State dummy_{0, 0, 0};
-    Context ctx_{dummy_, dummy_, [] (PathType &) {}};
+    Context ctx_{dummy_, dummy_, [] (const PathType &) { /* no-op */ }};
 };
 
 /// @brief Verify cost calculation from `p.controls.length`.

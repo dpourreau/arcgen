@@ -32,17 +32,19 @@ namespace arcgen::planner::engine
         using ConstraintSet = arcgen::planner::constraints::ConstraintSet<N>;
         using EvalContext = arcgen::planner::constraints::EvalContext<N>;
 
+        /**
+         * @brief Construct with steering policy and constraint set.
+         * @param steering    Steering function policy.
+         * @param constraints Constraint set to evaluate against.
+         */
         Evaluator (const Steering *steering, const ConstraintSet *constraints) : steering_ (steering), constraints_ (constraints) {}
 
         /**
          * @brief Get the associated constraints.
+         * @return Pointer to the constraint set.
          */
         [[nodiscard]] const ConstraintSet *getConstraints () const noexcept { return constraints_; }
 
-        /**
-         * @brief Generate candidates via the steering policy and pick the best feasible one.
-         * @return Best candidate states if any.
-         */
         /**
          * @brief Generate candidates via the steering policy and pick the best feasible one.
          * @return Best candidate states and its score if any.
@@ -69,26 +71,27 @@ namespace arcgen::planner::engine
                 return 0.0;
 
             PathT p;
-            // PathT::states is typically std::optional<std::vector<State>>
-            // We cannot simply point it to a span without a copy if it expects a vector.
-            // Let's check PathT definition. Usually it's arcgen::steering::Path<N>.
-            // Path structure has: std::optional<std::vector<State>> states;
-            // So we MUST copy if we use the 'states' member.
-            // HOWEVER, we can optimize by constructing the vector from the span iterators directly.
+            // Deep copy required: PathT uses std::vector (owning), input is std::span (view).
+            p.states.emplace (path.begin (), path.end ());
 
-            p.states = std::vector<arcgen::core::State> (path.begin (), path.end ());
-
-            EvalContext ctx{path.front (), path.back (), [] (PathT &) {}};
+            EvalContext ctx{path.front (), path.back (), [] (const PathT &) { /* no-op */ }};
             return constraints_->score (p, ctx);
         }
 
       private:
+        /**
+         * @brief Internal helper to evaluate candidates and select the best one.
+         * @param a    Start state.
+         * @param b    Goal state.
+         * @param cand List of candidate paths (mutable for lazy generation).
+         * @return Best path and its score, or nullopt if none feasible.
+         */
         [[nodiscard]] std::optional<std::pair<PathT, double>> best (const arcgen::core::State &a, const arcgen::core::State &b, std::vector<PathT> &cand) const
         {
             if (!steering_ || !constraints_)
                 return std::nullopt;
 
-            EvalContext ctx{a, b, [&] (PathT &p) { steering_->ensureStates (a, p); }};
+            EvalContext ctx{a, b, [this, &a] (const PathT &p) { steering_->ensureStates (a, p); }};
 
             std::optional<std::size_t> argmin;
             double bestScore = std::numeric_limits<double>::infinity ();
@@ -139,15 +142,15 @@ namespace arcgen::planner::engine
             }
 #endif
 
-            if (!argmin)
+            if (!argmin.has_value ())
                 return std::nullopt;
 
             steering_->ensureStates (a, cand[*argmin]); // ensure discretised states before returning
             return std::make_pair (cand[*argmin], bestScore);
         }
 
-        const Steering *steering_{nullptr};
-        const ConstraintSet *constraints_{nullptr};
+        const Steering *steering_{nullptr};         ///< Steering policy.
+        const ConstraintSet *constraints_{nullptr}; ///< Constraints set.
     };
 
 } // namespace arcgen::planner::engine

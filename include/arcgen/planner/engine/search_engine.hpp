@@ -2,14 +2,6 @@
 /**
  * @file search_engine.hpp
  * @brief High-level three-stage planner combining a steering-law, graph search, and a skeleton generator.
- *
- * Pipeline:
- *  - Stage 1: direct steering-law connection (enumerate + constraints).
- *  - Stage 2: local skeleton (AABB around start/goal + 2 * R_min margin).
- *  - Stage 3: global skeleton (built once, reused).
- *
- * Parallel highlight: connection evaluation can run in parallel over steering candidates
- * with a thread-safe argmin selection.
  */
 
 #include <arcgen/core/state.hpp>
@@ -29,6 +21,7 @@
 
 #include <algorithm>
 #include <concepts>
+#include <expected>
 #include <memory>
 #include <optional>
 #include <type_traits>
@@ -37,13 +30,13 @@
 
 namespace bg = boost::geometry;
 
-#include <expected>
-
 namespace arcgen::planner::engine
 {
-    using namespace arcgen::core;
-    using namespace arcgen::planner::geometry;
-    using namespace arcgen::planner::connector;
+    using arcgen::core::State;
+    using arcgen::planner::connector::GreedyConnector;
+    using arcgen::planner::geometry::Point;
+    using arcgen::planner::geometry::Polygon;
+    using arcgen::planner::geometry::Workspace;
 
     /**
      * @brief Error codes for the planning process.
@@ -55,6 +48,17 @@ namespace arcgen::planner::engine
         NoPathFound,   ///< No feasible path found
         InternalError, ///< Engine not initialized correctly
         Timeout        ///< (Reserved for future use)
+    };
+
+    /**
+     * @brief Transparent hasher for heterogeneous string lookups (std::string, std::string_view, const char*).
+     */
+    struct StringHash
+    {
+        using is_transparent = void;
+        [[nodiscard]] std::size_t operator() (std::string_view txt) const noexcept { return std::hash<std::string_view>{}(txt); }
+        [[nodiscard]] std::size_t operator() (const std::string &txt) const noexcept { return std::hash<std::string>{}(txt); }
+        [[nodiscard]] std::size_t operator() (const char *txt) const noexcept { return std::hash<std::string_view>{}(txt); }
     };
 
     /**
@@ -120,7 +124,7 @@ namespace arcgen::planner::engine
             struct TrajectoryStats
             {
                 double totalCost{0.0};
-                std::unordered_map<std::string, double> softConstraints;
+                std::unordered_map<std::string, double, StringHash, std::equal_to<>> softConstraints;
             };
 
             struct Step
@@ -137,13 +141,20 @@ namespace arcgen::planner::engine
             std::vector<Step> history;
 
             /// High-level component profiling (e.g., "Skeleton", "Graph Search").
-            std::unordered_map<std::string, double> componentTimes;
+            std::unordered_map<std::string, double, StringHash, std::equal_to<>> componentTimes;
 
             // Skeleton graph actually used (copied) when associated with a stage.
             std::optional<GlobalGraph> graph;
 
             std::optional<Source> source;
             int smoothingIterations{0};
+
+            DebugInfo () = default;
+            DebugInfo (const DebugInfo &) = default;
+            DebugInfo (DebugInfo &&) noexcept = default;
+            DebugInfo &operator= (const DebugInfo &) = default;
+            DebugInfo &operator= (DebugInfo &&) noexcept = default;
+            ~DebugInfo () = default;
         };
 
         using ConnectorType = Connector<Steering, DebugInfo>;
@@ -315,135 +326,98 @@ namespace arcgen::planner::engine
 
             Evaluator<Steering> evaluator (steering_.get (), &constraints_);
 
-            // ── Stage 1: direct (enumerate + constraints)
-            {
-                auto t0 = std::chrono::steady_clock::now ();
-                if (auto best = evaluator.bestStatesBetween (start, goal))
-                {
-                    auto t1 = std::chrono::steady_clock::now ();
-                    if (dbg)
-                    {
-                        // Record direct connection as a step
-                        typename DebugInfo::Step step;
-                        step.name = "Direct";
-                        step.path = best->first;
-                        step.stats.totalCost = best->second;
-                        step.computationTime = std::chrono::duration<double> (t1 - t0).count ();
+            if (auto path = attemptDirectConnection (start, goal, dbg, evaluator))
+                return *path;
 
-                        if (const auto *cset = evaluator.getConstraints ())
-                        {
-                            if (!cset->soft.empty ())
-                            {
-                                // Recalculate breakdown if needed or assumption: single segment cost is simple.
-                                // NOTE: Detailed breakdown would require constraints->score to return breakdown.
-                                // For now, we can just manually score soft constraints if we want breakdown.
-                            }
-                        }
-                        dbg->history.push_back (std::move (step));
-                        dbg->source = DebugInfo::Source::Direct;
-                    }
-                    return best->first;
-                }
-            }
-
-            auto tryGraph = [&] (auto &&graph, std::string stageName) -> std::optional<std::vector<State>>
-            {
-                // Measure Graph Search Time
-                auto t0 = std::chrono::steady_clock::now ();
-                auto coarse = graphSearch_->search (graph, start, goal);
-                auto t1 = std::chrono::steady_clock::now ();
-
-                if (dbg)
-                {
-                    dbg->componentTimes["Graph Search (" + stageName + ")"] = std::chrono::duration<double> (t1 - t0).count ();
-                }
-
-                if (coarse.size () < 2)
-                    return std::nullopt;
-
-                if (dbg)
-                {
-                    dbg->graph = graph; // copy for visualization
-                }
-
-                auto tConn0 = std::chrono::steady_clock::now ();
-                auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
-                auto tConn1 = std::chrono::steady_clock::now ();
-
-                if (dbg)
-                {
-                    dbg->componentTimes["Connection (" + stageName + ")"] = std::chrono::duration<double> (tConn1 - tConn0).count ();
-                }
-
-                if (path.empty ())
-                    return std::nullopt;
-
-                if (dbg)
-                {
-                    if (stageName == "Local")
-                        dbg->source = DebugInfo::Source::Local;
-                    else if (stageName == "Global")
-                        dbg->source = DebugInfo::Source::Global;
-                }
-                return path;
-            };
-
-            // ── Stage 2: local skeleton (axis-aligned rectangle around start/goal + margin)
             if (enableLocalSearch_)
             {
-                const double margin = localBBMargin_;
-                const double xMin = std::min (start.x, goal.x) - margin;
-                const double yMin = std::min (start.y, goal.y) - margin;
-                const double xMax = std::max (start.x, goal.x) + margin;
-                const double yMax = std::max (start.y, goal.y) + margin;
-
-                Polygon rect;
-                rect.outer ().resize (5);
-                rect.outer ()[0] = Point{xMin, yMin};
-                rect.outer ()[1] = Point{xMax, yMin};
-                rect.outer ()[2] = Point{xMax, yMax};
-                rect.outer ()[3] = Point{xMin, yMax};
-                rect.outer ()[4] = Point{xMin, yMin};
-                bg::correct (rect);
-
-                Workspace localValid = workspace_->clippedTo (rect);
-
-                if (!localValid.empty ())
-                {
-                    auto t0 = std::chrono::steady_clock::now ();
-                    auto localGraph = skeleton_->generate (localValid);
-                    auto t1 = std::chrono::steady_clock::now ();
-                    if (dbg)
-                        dbg->componentTimes["Skeleton Generation (Local)"] = std::chrono::duration<double> (t1 - t0).count ();
-
-                    if (auto path = tryGraph (localGraph, "Local"))
-                        return *path;
-                }
+                if (auto path = attemptLocalSearch (start, goal, dbg, evaluator))
+                    return *path;
             }
 
-            // ── Stage 3: global skeleton (lazy, cached; rebuild if needed).
-            if (!globalGraph_)
-            {
-                if (skeleton_ && workspace_ && !workspace_->empty ())
-                {
-                    auto t0 = std::chrono::steady_clock::now ();
-                    globalGraph_.emplace (skeleton_->generate (*workspace_));
-                    auto t1 = std::chrono::steady_clock::now ();
-                    if (dbg)
-                        dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
-                }
-            }
-
-            if (!globalGraph_)
-                return std::unexpected (PlanningError::NoPathFound); // workspace empty or skeleton generation failed
-
-            if (auto path = tryGraph (*globalGraph_, "Global"))
+            if (auto path = attemptGlobalSearch (start, goal, dbg, evaluator))
                 return *path;
 
             return std::unexpected (PlanningError::NoPathFound);
         }
 
-      private:
+        [[nodiscard]] std::optional<std::vector<State>> attemptDirectConnection (const State &start, const State &goal, DebugInfo *dbg, const Evaluator<Steering> &evaluator)
+        {
+            auto t0 = std::chrono::steady_clock::now ();
+            if (auto best = evaluator.bestStatesBetween (start, goal))
+            {
+                auto t1 = std::chrono::steady_clock::now ();
+                if (dbg)
+                {
+                    // Record direct connection as a step
+                    typename DebugInfo::Step step;
+                    step.name = "Direct";
+                    step.path = best->first;
+                    step.stats.totalCost = best->second;
+                    step.computationTime = std::chrono::duration<double> (t1 - t0).count ();
+
+                    if (const auto *cset = evaluator.getConstraints (); cset && !cset->soft.empty ())
+                    {
+                        // Recalculate breakdown if needed or assumption: single segment cost is simple.
+                        // NOTE: Detailed breakdown would require constraints->score to return breakdown.
+                        // For now, we can just manually score soft constraints if we want breakdown.
+                    }
+                    dbg->history.push_back (std::move (step));
+                    dbg->source = DebugInfo::Source::Direct;
+                }
+                return best->first;
+            }
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<std::vector<State>> attemptLocalSearch (const State &start, const State &goal, DebugInfo *dbg, const Evaluator<Steering> &evaluator)
+        {
+            const double margin = localBBMargin_;
+            const double xMin = std::min (start.x, goal.x) - margin;
+            const double yMin = std::min (start.y, goal.y) - margin;
+            const double xMax = std::max (start.x, goal.x) + margin;
+            const double yMax = std::max (start.y, goal.y) + margin;
+
+            Polygon rect;
+            rect.outer ().resize (5);
+            rect.outer ()[0] = Point{xMin, yMin};
+            rect.outer ()[1] = Point{xMax, yMin};
+            rect.outer ()[2] = Point{xMax, yMax};
+            rect.outer ()[3] = Point{xMin, yMax};
+            rect.outer ()[4] = Point{xMin, yMin};
+            bg::correct (rect);
+
+            if (Workspace localValid = workspace_->clippedTo (rect); !localValid.empty ())
+            {
+                auto t0 = std::chrono::steady_clock::now ();
+                auto localGraph = skeleton_->generate (localValid);
+                auto t1 = std::chrono::steady_clock::now ();
+                if (dbg)
+                    dbg->componentTimes["Skeleton Generation (Local)"] = std::chrono::duration<double> (t1 - t0).count ();
+
+                if (auto path = planOnGraph (localGraph, "Local", start, goal, dbg, evaluator))
+                    return *path;
+            }
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<std::vector<State>> attemptGlobalSearch (const State &start, const State &goal, DebugInfo *dbg, const Evaluator<Steering> &evaluator)
+        {
+            if (!globalGraph_ && skeleton_ && workspace_ && !workspace_->empty ())
+            {
+                auto t0 = std::chrono::steady_clock::now ();
+                globalGraph_.emplace (skeleton_->generate (*workspace_));
+                auto t1 = std::chrono::steady_clock::now ();
+                if (dbg)
+                    dbg->componentTimes["Skeleton Generation (Global)"] = std::chrono::duration<double> (t1 - t0).count ();
+            }
+
+            if (!globalGraph_)
+                return std::nullopt; // workspace empty or skeleton generation failed
+
+            return planOnGraph (*globalGraph_, "Global", start, goal, dbg, evaluator);
+        }
+
         std::shared_ptr<Steering> steering_;       ///< Steering-law policy.
         std::shared_ptr<GraphSearch> graphSearch_; ///< Graph search adaptor.
         std::shared_ptr<Skeleton> skeleton_;       ///< Skeleton generator.
@@ -453,6 +427,59 @@ namespace arcgen::planner::engine
         ConstraintSet constraints_;                ///< Active constraints (hard + soft).
         bool enableLocalSearch_;                   ///< Enable Stage 2 local search.
         double localBBMargin_;                     ///< Margin for local bounding box search.
+
+        /**
+         * @brief Internal helper to execute the graph search and connection pipeline on a specific graph.
+         * @param graph     The skeleton graph to search over.
+         * @param stageName Name of the stage (e.g., "Local", "Global") for profiling/debugging.
+         * @param start     Start state.
+         * @param goal      Goal state.
+         * @param dbg       Debug info pointer (can be null).
+         * @param evaluator Evaluator instance for scoring connections.
+         * @return Discretized states if successful, nullopt otherwise.
+         */
+        [[nodiscard]] std::optional<std::vector<State>> planOnGraph (const GlobalGraph &graph, std::string_view stageName, const State &start, const State &goal, DebugInfo *dbg,
+                                                                     const Evaluator<Steering> &evaluator)
+        {
+            // Measure Graph Search Time
+            auto t0 = std::chrono::steady_clock::now ();
+            auto coarse = graphSearch_->search (graph, start, goal);
+            auto t1 = std::chrono::steady_clock::now ();
+
+            if (dbg)
+            {
+                dbg->componentTimes[std::string ("Graph Search (").append (stageName).append (")")] = std::chrono::duration<double> (t1 - t0).count ();
+            }
+
+            if (coarse.size () < 2)
+                return std::nullopt;
+
+            if (dbg)
+            {
+                dbg->graph = graph; // copy for visualization
+            }
+
+            auto tConn0 = std::chrono::steady_clock::now ();
+            auto path = connector_->connect (evaluator, start, goal, std::move (coarse), dbg);
+            auto tConn1 = std::chrono::steady_clock::now ();
+
+            if (dbg)
+            {
+                dbg->componentTimes[std::string ("Connection (").append (stageName).append (")")] = std::chrono::duration<double> (tConn1 - tConn0).count ();
+            }
+
+            if (path.empty ())
+                return std::nullopt;
+
+            if (dbg)
+            {
+                if (stageName == "Local")
+                    dbg->source = DebugInfo::Source::Local;
+                else if (stageName == "Global")
+                    dbg->source = DebugInfo::Source::Global;
+            }
+            return path;
+        }
     };
 
 } // namespace arcgen::planner::engine

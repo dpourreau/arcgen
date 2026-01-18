@@ -58,6 +58,10 @@ namespace arcgen::planner::graph
 
       protected:
         GraphSearchBase () = default;
+        GraphSearchBase (const GraphSearchBase &) = default;
+        GraphSearchBase (GraphSearchBase &&) noexcept = default;
+        GraphSearchBase &operator= (const GraphSearchBase &) = default;
+        GraphSearchBase &operator= (GraphSearchBase &&) noexcept = default;
         ~GraphSearchBase () = default;
     };
 

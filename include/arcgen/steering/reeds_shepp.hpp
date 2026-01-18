@@ -86,7 +86,7 @@ namespace arcgen::steering
             familyCcsc (x * this->getKappa (), y * this->getKappa (), dth, paths);
             familyCcscc (x * this->getKappa (), y * this->getKappa (), dth, paths);
 
-            std::sort (paths.begin (), paths.end (), [this] (const auto &a, const auto &b) { return this->shorter (a, b); });
+            std::ranges::sort (paths, [this] (const auto &a, const auto &b) { return this->shorter (a, b); });
             return paths;
         }
 
@@ -132,10 +132,10 @@ namespace arcgen::steering
         /// @brief CSC family primitive: L+ S L+.
         [[nodiscard]] constexpr bool LpSpLp (const double &x, const double &y, const double &phi, double &t, double &u, double &v) const noexcept
         {
-            std::tie (u, t) = toPolar (x - std::sin (phi), y - 1.0 + std::cos (phi));
+            std::tie (u, t) = arcgen::core::toPolar (x - std::sin (phi), y - 1.0 + std::cos (phi));
             if (t >= -arcgen::core::reeds_shepp_zero_tol)
             {
-                v = normalizeAngleSigned (phi - t);
+                v = arcgen::core::normalizeAngleSigned (phi - t);
                 return v >= -arcgen::core::reeds_shepp_zero_tol;
             }
             return false;
@@ -144,14 +144,14 @@ namespace arcgen::steering
         /// @brief CSC family primitive: L+ S R+.
         [[nodiscard]] constexpr bool LpSpRp (const double &x, const double &y, const double &phi, double &t, double &u, double &v) const noexcept
         {
-            auto [rho, theta] = toPolar (x + std::sin (phi), y - 1.0 - std::cos (phi));
+            auto [rho, theta] = arcgen::core::toPolar (x + std::sin (phi), y - 1.0 - std::cos (phi));
             rho *= rho; // ρ²
             if (rho >= 4.0)
             {
                 u = std::sqrt (rho - 4.0);
                 const double th = std::atan2 (2.0, u);
-                t = normalizeAngleSigned (theta + th);
-                v = normalizeAngleSigned (t - phi);
+                t = arcgen::core::normalizeAngleSigned (theta + th);
+                v = arcgen::core::normalizeAngleSigned (t - phi);
                 return t >= -arcgen::core::reeds_shepp_zero_tol && v >= -arcgen::core::reeds_shepp_zero_tol;
             }
             return false;
@@ -162,12 +162,12 @@ namespace arcgen::steering
         {
             const double xi = x - std::sin (phi);
             const double eta = y - 1.0 + std::cos (phi);
-            auto [rho, theta] = toPolar (xi, eta);
+            auto [rho, theta] = arcgen::core::toPolar (xi, eta);
             if (rho <= 4.0)
             {
                 u = -2.0 * std::asin (0.25 * rho);
-                t = normalizeAngleSigned (theta + 0.5 * u + std::numbers::pi);
-                v = normalizeAngleSigned (phi - t + u);
+                t = arcgen::core::normalizeAngleSigned (theta + 0.5 * u + std::numbers::pi);
+                v = arcgen::core::normalizeAngleSigned (phi - t + u);
                 return t >= -arcgen::core::reeds_shepp_zero_tol && u <= arcgen::core::reeds_shepp_zero_tol;
             }
             return false;
@@ -178,8 +178,7 @@ namespace arcgen::steering
         {
             const double xi = x + std::sin (phi);
             const double eta = y - 1.0 - std::cos (phi);
-            const double rho = 0.25 * (2.0 + std::hypot (xi, eta));
-            if (rho <= 1.0)
+            if (const double rho = 0.25 * (2.0 + std::hypot (xi, eta)); rho <= 1.0)
             {
                 u = std::acos (rho);
                 std::tie (t, v) = tauOmega (u, -u, xi, eta, phi);
@@ -193,8 +192,7 @@ namespace arcgen::steering
         {
             const double xi = x + std::sin (phi);
             const double eta = y - 1.0 - std::cos (phi);
-            const double rho = (20.0 - xi * xi - eta * eta) / 16.0;
-            if (rho >= 0.0 && rho <= 1.0)
+            if (const double rho = (20.0 - xi * xi - eta * eta) / 16.0; rho >= 0.0 && rho <= 1.0)
             {
                 u = -std::acos (rho);
                 if (u >= -0.5 * std::numbers::pi)
@@ -211,14 +209,14 @@ namespace arcgen::steering
         {
             const double xi = x - std::sin (phi);
             const double eta = y - 1.0 + std::cos (phi);
-            auto [rho, theta] = toPolar (xi, eta);
+            auto [rho, theta] = arcgen::core::toPolar (xi, eta);
 
             if (rho >= 2.0)
             {
                 const double r = std::sqrt (rho * rho - 4.0);
                 u = 2.0 - r;
-                t = normalizeAngleSigned (theta + std::atan2 (r, -2.0));
-                v = normalizeAngleSigned (phi - 0.5 * std::numbers::pi - t);
+                t = arcgen::core::normalizeAngleSigned (theta + std::atan2 (r, -2.0));
+                v = arcgen::core::normalizeAngleSigned (phi - 0.5 * std::numbers::pi - t);
                 return t >= -arcgen::core::reeds_shepp_zero_tol && u <= arcgen::core::reeds_shepp_zero_tol && v <= arcgen::core::reeds_shepp_zero_tol;
             }
             return false;
@@ -229,13 +227,13 @@ namespace arcgen::steering
         {
             const double xi = x + std::sin (phi);
             const double eta = y - 1.0 - std::cos (phi);
-            auto [rho, theta] = toPolar (-eta, xi);
+            auto [rho, theta] = arcgen::core::toPolar (-eta, xi);
 
             if (rho >= 2.0)
             {
                 t = theta;
                 u = 2.0 - rho;
-                v = normalizeAngleSigned (t + 0.5 * std::numbers::pi - phi);
+                v = arcgen::core::normalizeAngleSigned (t + 0.5 * std::numbers::pi - phi);
                 return t >= -arcgen::core::reeds_shepp_zero_tol && u <= arcgen::core::reeds_shepp_zero_tol && v <= arcgen::core::reeds_shepp_zero_tol;
             }
             return false;
@@ -246,15 +244,15 @@ namespace arcgen::steering
         {
             const double xi = x + std::sin (phi);
             const double eta = y - 1.0 - std::cos (phi);
-            auto [rho, theta] = toPolar (xi, eta);
+            auto [rho, theta] = arcgen::core::toPolar (xi, eta);
 
             if (rho >= 2.0)
             {
                 u = 4.0 - std::sqrt (rho * rho - 4.0);
                 if (u <= arcgen::core::reeds_shepp_zero_tol)
                 {
-                    t = normalizeAngleSigned (std::atan2 ((4.0 - u) * xi - 2.0 * eta, -2.0 * xi + (u - 4.0) * eta));
-                    v = normalizeAngleSigned (t - phi);
+                    t = arcgen::core::normalizeAngleSigned (std::atan2 ((4.0 - u) * xi - 2.0 * eta, -2.0 * xi + (u - 4.0) * eta));
+                    v = arcgen::core::normalizeAngleSigned (t - phi);
                     return t >= -arcgen::core::reeds_shepp_zero_tol && v >= -arcgen::core::reeds_shepp_zero_tol;
                 }
             }
@@ -272,15 +270,15 @@ namespace arcgen::steering
          */
         [[nodiscard]] constexpr std::pair<double, double> tauOmega (const double &u, const double &v, const double &xi, const double &eta, const double &phi) const noexcept
         {
-            const double delta = normalizeAngleSigned (u - v);
+            const double delta = arcgen::core::normalizeAngleSigned (u - v);
             const double A = std::sin (u) - std::sin (delta);
             const double B = std::cos (u) - std::cos (delta) - 1.0;
 
             const double t1 = std::atan2 (eta * A - xi * B, xi * A + eta * B);
             const double t2 = 2.0 * (std::cos (delta) - std::cos (v) - std::cos (u)) + 3.0;
 
-            const double tau = (t2 < 0.0) ? normalizeAngleSigned (t1 + std::numbers::pi) : normalizeAngleSigned (t1);
-            const double omega = normalizeAngleSigned (tau - u + v - phi);
+            const double tau = (t2 < 0.0) ? arcgen::core::normalizeAngleSigned (t1 + std::numbers::pi) : arcgen::core::normalizeAngleSigned (t1);
+            const double omega = arcgen::core::normalizeAngleSigned (tau - u + v - phi);
             return {tau, omega};
         }
 
@@ -289,7 +287,9 @@ namespace arcgen::steering
         /// @brief Build CSC-family candidates and append to @p paths.
         constexpr void familyCsc (const double &x, const double &y, const double &phi, std::vector<ReedsShepp::ReedsSheppPath> &paths) const noexcept
         {
-            double t, u, v;
+            double t;
+            double u;
+            double v;
 
             /* L+S-L+,  mirror & sign variants */
             if (LpSpLp (x, y, phi, t, u, v))
@@ -315,7 +315,9 @@ namespace arcgen::steering
         /// @brief Build CCC-family candidates and append to @p paths.
         constexpr void familyCcc (const double &x, const double &y, const double &phi, std::vector<ReedsShepp::ReedsSheppPath> &paths) const noexcept
         {
-            double t, u, v;
+            double t;
+            double u;
+            double v;
 
             if (LpRmL (x, y, phi, t, u, v))
                 paths.push_back ({&PATH_TYPES[0], {t, u, v, 0, 0}});
@@ -327,7 +329,8 @@ namespace arcgen::steering
                 paths.push_back ({&PATH_TYPES[1], {-t, -u, -v, 0, 0}});
 
             /* mirrored “backwards” versions */
-            const double cs = std::cos (phi), sn = std::sin (phi);
+            const double cs = std::cos (phi);
+            const double sn = std::sin (phi);
             const double xb = x * cs + y * sn;
             const double yb = x * sn - y * cs;
 
@@ -344,7 +347,9 @@ namespace arcgen::steering
         /// @brief Build CCCC-family candidates and append to @p paths.
         constexpr void familyCccc (const double &x, const double &y, const double &phi, std::vector<ReedsShepp::ReedsSheppPath> &paths) const noexcept
         {
-            double t, u, v;
+            double t;
+            double u;
+            double v;
 
             /* L+R⁺L⁻R⁻ */
             if (LpRupLumRm (x, y, phi, t, u, v))
@@ -370,7 +375,9 @@ namespace arcgen::steering
         /// @brief Build CCSC-family candidates and append to @p paths.
         constexpr void familyCcsc (const double &x, const double &y, const double &phi, std::vector<ReedsShepp::ReedsSheppPath> &paths) const noexcept
         {
-            double t, u, v;
+            double t;
+            double u;
+            double v;
 
             constexpr double H = -0.5 * std::numbers::pi; // half-turn in radians
 
@@ -393,7 +400,8 @@ namespace arcgen::steering
             if (LpRmSmRm (-x, -y, phi, t, u, v))
                 paths.push_back ({&PATH_TYPES[9], {-t, -H, -u, -v, 0}});
 
-            const double cs = std::cos (phi), sn = std::sin (phi);
+            const double cs = std::cos (phi);
+            const double sn = std::sin (phi);
             const double xb = x * cs + y * sn;
             const double yb = x * sn - y * cs;
 
@@ -419,7 +427,9 @@ namespace arcgen::steering
         /// @brief Build CCSCC-family candidates and append to @p paths.
         constexpr void familyCcscc (const double &x, const double &y, const double &phi, std::vector<ReedsShepp::ReedsSheppPath> &paths) const noexcept
         {
-            double t, u, v;
+            double t;
+            double u;
+            double v;
 
             constexpr double H = -0.5 * std::numbers::pi;
 
